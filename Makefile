@@ -1,16 +1,14 @@
-all: main.app main2.app main3.app main4.app main5.app
+all: main.app \
+	main2.app \
+	main3.app \
+	main4.app \
+	main5.app \
+	main6.app
 
-main.app: main.c
-	clang -o $@ $^
+OBJECTS=process.o compile.o
 
-main2.app: main2.c
-	clang -o $@ $^
+%.o: %.c
+	clang -o $@ $^ -c
 
-main3.app: main3.c
-	clang -o $@ $^
-
-main4.app: main4.c
-	clang -o $@ $^
-
-main5.app: main5.c
+%.app: %.c $(OBJECTS)
 	clang -o $@ $^
