@@ -1,1 +1,1 @@
-ls *.c | entr -rcs "make && ./main3.app"
+ls *.c | entr -rcs "make && ./main5.app"

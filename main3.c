@@ -42,7 +42,7 @@ int main(void) {
         char ReadBuffer[80];
         int NumBytes = read(StdOutPipe[0], ReadBuffer, 80);
         if (NumBytes) {
-            printf("Received string: %s", ReadBuffer);
+            printf("Received string: %s\n", ReadBuffer);
         }
         else {
             printf("No\n");
