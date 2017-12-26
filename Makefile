@@ -1,11 +1,6 @@
-all: main.app \
-	main2.app \
-	main3.app \
-	main4.app \
-	main5.app \
-	main6.app
+all: test-compile.app
 
-OBJECTS=process.o compile.o
+OBJECTS=process.o compile.o dynamic.o
 
 %.o: %.c
 	clang -o $@ $^ -c
