@@ -59,7 +59,9 @@ int CallProcess(const char** Args, const char* StdIn,
     while (waitpid(ChildPID, &ExitStatus, WNOHANG) == 0) {
         // Wait for the process...
     }
-    printf("Exited with status: %i\n", ExitStatus);
+    if (ExitStatus) {
+        printf("Clang exited with error status: %i\n", ExitStatus);
+    }
 
     // Read StdOut/StdErr
     *OutLength = read(StdOutPipe[0], OutBuffer, OutBufferSize);

@@ -1,21 +1,31 @@
 #include <stdio.h>
+#include <unistd.h>
 #include <string.h>
 #include "dynamic.h"
 
-const char* FooSource =
-"#include <stdio.h>\n"
-"int Foo(void) {\n"
-"    printf(\"Hello from Foo!\\n\");\n"
-"    return 123;\n"
-"}\n";
+int (*Foo) (void);
+
+void FooLoader(library* Library, void* UserData) {
+    printf("Executing FooLoader. %p\n", Library->LibHandle);
+    void* FunctionHandle = dlsym(Library->LibHandle, "Foo");
+
+    if (FunctionHandle) {
+        Foo = FunctionHandle;
+    } else {
+        printf("Couldn't find symbol 'Foo' :(\n");
+    }
+}
 
 int main() {
 
-    int (*Foo) (void);
-    // Foo = DynamicFunction("Foo", FooSource);
-    Foo = DynamicFunction("Foo", "testfile.c");
+    library* TestLib = CreateLibrary("testfile.c", FooLoader, NULL);
 
-    printf("Result: %i\n", Foo());
+    int I = 1000;
+    while (I--) {
+        usleep(500000);
+        UpdateLibrary(TestLib);
+        Foo();
+    }
 
     return 0;
 }
