@@ -4,42 +4,14 @@
 #include "compile.h"
 #include "dynamic.h"
 
-// FIXME: shouldn't wrap this up so tightly, as we'd like to be
-// able to return the library to get multiple symbols from it
-// along with freeing it
-
-void* DynamicFunction(const char* FunctionName, const char* FunctionSource)
-{
-    char FileNameSO[256];
-    snprintf(FileNameSO, sizeof(FileNameSO), "%s.so", FunctionName);
-
-    char ErrBuffer[1024];
-    size_t ErrLength;
-
-    int ExitCode = CompileSource(
-        FileNameSO, FunctionSource,
-        ErrBuffer, sizeof(ErrBuffer), &ErrLength);
-
-    if (ErrLength) printf("Compilation error: %s\n", ErrBuffer);
-
-    if (ExitCode != 0) {
-        printf("Compilation failed with exit code: %i", ExitCode);
-        return NULL;
-    }
-
-    void* LibraryHandle  = dlopen(FileNameSO, RTLD_LAZY);
-    void* FunctionHandle = dlsym(LibraryHandle, FunctionName);
-
-    return FunctionHandle;
-}
-
-
-library* CreateLibrary(char* SourceFilename, loader_func LoaderFunc, void* LoaderUserData) {
+library* CreateLibrary(char* Name, char* Source, loader_func LoaderFunc, void* LoaderUserData) {
     library* Library = calloc(1, sizeof(library));
-    Library->SourceFilename = strdup(SourceFilename);
+    Library->Name           = strdup(Name);
+    Library->Source         = strdup(Source);
     Library->LoaderFunc     = LoaderFunc;
     Library->LoaderUserData = LoaderUserData;
-    UpdateLibrary(Library);
+    Library->SourceUpdated  = true;
+    UpdateLibraryFile(Library);
     return Library;
 }
 
@@ -47,7 +19,8 @@ void FreeLibrary(library* Library) {
     if (Library->LibHandle) {
         dlclose(Library->LibHandle);
     }
-    free(Library->SourceFilename);
+    free(Library->Name);
+    free(Library->Source);
     free(Library);
 }
 
@@ -55,33 +28,41 @@ void* GetLibrarySymbol(library* Library, char* SymbolName) {
     return dlsym(Library->LibHandle, SymbolName);
 }
 
-bool UpdateLibrary(library* Library) {
+void UpdateLibrarySource(library* Library, char* Source) {
+    free(Library->Source);
+    Library->Source = strdup(Source);
+    Library->SourceUpdated = true;
+    UpdateLibraryFile(Library);
+}
+
+bool UpdateLibraryFile(library* Library) {
     if (!Library) return false;
 
-    // Verify the source file name is a c file name,
-    // since we CompileSource also supports source code.
-    // FIXME figure out how/if we want to handle that.
-    if (IsCFileName(Library->SourceFilename)) {
+    // If the source is a C file, check if it's been updated.
+    if (IsCFileName(Library->Source)) {
         struct stat attr = { 0 };
-        stat(Library->SourceFilename, &attr);
+        stat(Library->Source, &attr);
         time_t NewModTime = attr.st_mtime;
         if (NewModTime == Library->LastModTime) return false;
 
         Library->LastModTime = NewModTime;
+    } else if (!Library->SourceUpdated) {
+        return false;
     }
+    Library->SourceUpdated = false;
 
-    // Get a name for the library derived from the source
+    // Append .so to the library name
     char LibraryFilename[256];
     snprintf(LibraryFilename,
         sizeof(LibraryFilename),
-        "%s.so", Library->SourceFilename);
+        "%s.so", Library->Name);
 
     // Clear the compilation log
     memset(Library->CompilationLog, 0, sizeof(Library->CompilationLog));
 
     // Compile the source into a library
     int ExitCode = CompileSource(
-        LibraryFilename, Library->SourceFilename,
+        LibraryFilename, Library->Source,
         Library->CompilationLog, sizeof(Library->CompilationLog),
         &Library->CompilationLogLength);
 
@@ -109,8 +90,36 @@ bool UpdateLibrary(library* Library) {
         if (Library->LoaderFunc) {
             Library->LoaderFunc(Library, Library->LoaderUserData);
         }
-
-        return true;
     }
     return true;
+}
+
+
+// Shortcut to grabbing a single function.
+void* DynamicFunction(char* FunctionName, char* FunctionSource)
+{
+    char FileNameSO[256];
+    snprintf(FileNameSO, sizeof(FileNameSO), "%s.so", FunctionName);
+
+    // Check if the library is already open, and close it if so
+    void* LibraryHandle = dlopen(FileNameSO, RTLD_NOLOAD);
+    if (LibraryHandle) {
+        // Must call dlclose twice, since dlopen with RTLD_NOLOAD
+        // still increments the reference count
+        int Result = dlclose(LibraryHandle);
+        if (Result) printf("dlclose error: %i\n", Result);
+        Result = dlclose(LibraryHandle);
+        if (Result) printf("dlclose error: %i\n", Result);
+    }
+
+    library* Library = CreateLibrary(FunctionName, FunctionSource,
+        NULL, NULL);
+
+    void* FunctionHandle = GetLibrarySymbol(Library, FunctionName);
+
+    // Prevent FreeLibrary from freeing the lib.
+    Library->LibHandle = NULL;
+    FreeLibrary(Library);
+
+    return FunctionHandle;
 }

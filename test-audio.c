@@ -96,10 +96,12 @@ int main(int argc, char const *argv[]) {
         return -1;
     }
 
-    library* CallbackFunc = CreateLibrary("audio-wavetable.c", LoaderCallback, AudioState);
+    library* CallbackFunc = CreateLibrary(
+        "audio-wavetable",
+        "audio-wavetable.c", LoaderCallback, AudioState);
 
     while (true) {
-        UpdateLibrary(CallbackFunc);
+        UpdateLibraryFile(CallbackFunc);
     }
 
 

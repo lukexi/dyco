@@ -1,4 +1,4 @@
-all: test-compile.app test-audio.app
+all: test-compile.app test-dynfunc.app test-audio.app
 
 OBJECTS=process.o compile.o dynamic.o ringbuffer.o pa_ringbuffer.o
 

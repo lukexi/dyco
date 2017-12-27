@@ -1,5 +1,5 @@
 #include <stdio.h>
 int Foo(void) {
-    printf("Hello gfrom !\n");
+    printf("Hello there!\n");
     return 123;
 }
