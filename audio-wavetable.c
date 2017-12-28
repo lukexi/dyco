@@ -8,6 +8,7 @@ bool Initialized;
 float SinWave[512];
 float SawWave[512];
 float SquWave[512];
+float TriWave[512];
 
 const double TAU = M_PI * 2;
 
@@ -26,6 +27,10 @@ void Initialize() {
             SquWave[I] += sin(PhaseR*(2*K-1)) / (float)(2*K-1);
         }
         SquWave[I] *= 4/M_PI;
+
+        for (int K = 0; K < NumPartials; K++) {
+            TriWave[I] += pow(-1, K) * pow(2*K+1, -2) * sin(PhaseR*(2*K+1));
+        }
     }
 
     Initialized = true;
@@ -54,14 +59,14 @@ int TickUGen(jack_nframes_t NumFrames, void *Arg) {
     for (int SampleIndex = 0; SampleIndex < NumFrames; SampleIndex++) {
         float Mix = sin((float)(GlobalPhase%SampleRate) / SampleRate * 1 * TAU) * 0.5 + 0.5;
 
-        float Output1 = SawWave[ (int)(GlobalPhase*Seq) % 512 ];
-        float Output2 = SquWave[ (int)(GlobalPhase*Seq) % 512 ];
+        float Wave1 = SawWave[ (int)(GlobalPhase*Seq) % 512 ];
+        float Wave2 = SquWave[ (int)(GlobalPhase*Seq) % 512 ];
 
-        Output1 += SawWave[ (int)(GlobalPhase*Seq*1.5) % 512 ];
-        Output2 += SquWave[ (int)(GlobalPhase*Seq*1.5) % 512 ];
+        Wave1 += SawWave[ (int)(GlobalPhase*Seq*1.5) % 512 ];
+        Wave2 += SquWave[ (int)(GlobalPhase*Seq*1.5) % 512 ];
 
-        float OutputL = (Output1 * Mix) + (Output2 * (1-Mix));
-        float OutputR = (Output1 * (1-Mix)) + (Output2 * Mix);
+        float OutputL = Wave1*Mix + Wave2*(1-Mix);
+        float OutputR = Wave1*(1-Mix) + Wave2*Mix;
 
         OutputL *= 0.1;
         OutputR *= 0.1;
