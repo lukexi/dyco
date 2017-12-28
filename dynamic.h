@@ -17,6 +17,7 @@ struct library {
     char   CompilationLog[2048];
     size_t CompilationLogLength;
     bool   SourceUpdated;
+    bool   LibraryNeedsReload;
 
     loader_func LoaderFunc;
     void* LoaderUserData;
@@ -26,6 +27,8 @@ struct library {
 // Provide an optional callback to call when the library is updated
 library* CreateLibrary(char* Name, char* Source, loader_func LoaderFunc, void* LoaderUserData);
 
+// Get a symbol from the library that will be
+// valid until the next time the library is reloaded.
 void* GetLibrarySymbol(library* Library, char* SymbolName);
 
 // Set a new source for the library and compile it.
@@ -37,7 +40,18 @@ void UpdateLibrarySource(library* Library, char* Source);
 // (if you use this instead of the callback, reload symbols when this is true)
 bool UpdateLibraryFile(library* Library);
 
+// Unloads the library. All symbols will become invalid.
 void FreeLibrary(library* Library);
+
+// Allow separate recompilation and reloading,
+// when you'd like them to happen on separate threads, for example.
+// (these are alternative to the "Update" functions,
+// which recompile and reload in one call.)
+// You can call these as quickly as you want, since they won't
+// do anything until necessary, and will return true when something
+// was done.
+bool RecompileLibrary(library* Library);
+bool ReloadLibrary(library* Library);
 
 // Shortcut to grabbing a single function from source.
 // Uses the function name as the library name,

@@ -4,6 +4,7 @@
 #include "audio-interface.h"
 #include "dynamic.h"
 
+int AudioCallback(jack_nframes_t NumFrames, void *Arg);
 bool ConnectJack(audio_state* AudioState);
 
 bool StartJack(audio_state* AudioState) {
@@ -42,6 +43,8 @@ bool StartJack(audio_state* AudioState) {
         return false;
     }
 
+    jack_set_process_callback(AudioState->Client, AudioCallback, (void*)AudioState);
+
     if (jack_activate(AudioState->Client)) {
         fprintf(stderr, "cannot activate client");
         return false;
@@ -72,23 +75,26 @@ bool ConnectJack(audio_state* AudioState) {
     return true;
 }
 
-void LoaderCallback(library* Library, void* UserData) {
+int AudioCallback(jack_nframes_t NumFrames, void *UserData) {
+
     audio_state *AudioState = (audio_state*)UserData;
+    if (!AudioState) return 0;
 
-    int (*TickUGen)(jack_nframes_t NumFrames, void *Arg);
-
-    TickUGen = GetLibrarySymbol(Library, "TickUGen");
-
-    if (TickUGen) {
-        jack_deactivate(AudioState->Client);
-        jack_set_process_callback(AudioState->Client, TickUGen, (void*)AudioState);
-        jack_activate(AudioState->Client);
-        ConnectJack(AudioState);
+    if (!AudioState->TickUGen || ReloadLibrary(AudioState->UGen)) {
+        AudioState->TickUGen = GetLibrarySymbol(AudioState->UGen, "TickUGen");
     }
+
+    AudioState->TickUGen(NumFrames, UserData);
+    return 0;
 }
 
 int main(int argc, char const *argv[]) {
     audio_state* AudioState = calloc(1, sizeof(audio_state));
+
+    AudioState->UGen = CreateLibrary(
+        "audio-wavetable",
+        "audio-wavetable.c", NULL, NULL);
+    AudioState->TickUGen = GetLibrarySymbol(AudioState->UGen, "TickUGen");
 
     bool JackStarted = StartJack(AudioState);
     if (!JackStarted) {
@@ -96,12 +102,8 @@ int main(int argc, char const *argv[]) {
         return -1;
     }
 
-    library* CallbackFunc = CreateLibrary(
-        "audio-wavetable",
-        "audio-wavetable.c", LoaderCallback, AudioState);
-
     while (true) {
-        UpdateLibraryFile(CallbackFunc);
+        RecompileLibrary(AudioState->UGen);
     }
 
 

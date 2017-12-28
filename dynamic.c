@@ -16,6 +16,7 @@ library* CreateLibrary(char* Name, char* Source, loader_func LoaderFunc, void* L
 }
 
 void FreeLibrary(library* Library) {
+    if (!Library) return;
     if (Library->LibHandle) {
         dlclose(Library->LibHandle);
     }
@@ -25,17 +26,58 @@ void FreeLibrary(library* Library) {
 }
 
 void* GetLibrarySymbol(library* Library, char* SymbolName) {
+    if (!Library) return NULL;
     return dlsym(Library->LibHandle, SymbolName);
 }
 
 void UpdateLibrarySource(library* Library, char* Source) {
+    if (!Library) return;
     free(Library->Source);
     Library->Source = strdup(Source);
     Library->SourceUpdated = true;
     UpdateLibraryFile(Library);
 }
 
+bool ReloadLibrary(library* Library) {
+    if (!Library) return false;
+    if (!Library->LibraryNeedsReload) return false;
+
+    char LibraryFilename[256];
+    snprintf(LibraryFilename, sizeof(LibraryFilename), "%s.so", Library->Name);
+
+    // Open the new library
+    if (Library->LibHandle) {
+        int Result = dlclose(Library->LibHandle);
+        if (Result) printf("dlclose error: %i\n", Result);
+        Library->LibHandle = NULL;
+    }
+
+    void* NewLibraryHandle = dlopen(LibraryFilename, RTLD_LAZY);
+
+    if (NewLibraryHandle) {
+        Library->LibHandle = NewLibraryHandle;
+
+        if (Library->LoaderFunc) {
+            Library->LoaderFunc(Library, Library->LoaderUserData);
+        }
+    }
+    Library->LibraryNeedsReload = false;
+
+    return true;
+}
+
 bool UpdateLibraryFile(library* Library) {
+    if (!Library) return false;
+
+    if (RecompileLibrary(Library)) {
+        ReloadLibrary(Library);
+        return true;
+    }
+
+    return false;
+}
+
+bool RecompileLibrary(library* Library) {
     if (!Library) return false;
 
     // If the source is a C file, check if it's been updated.
@@ -75,29 +117,15 @@ bool UpdateLibraryFile(library* Library) {
         return false;
     }
 
-    // Open the new library
-    if (Library->LibHandle) {
-        int Result = dlclose(Library->LibHandle);
-        if (Result) printf("dlclose error: %i\n", Result);
-        Library->LibHandle = NULL;
-    }
+    Library->LibraryNeedsReload = true;
 
-    void* NewLibraryHandle = dlopen(LibraryFilename, RTLD_LAZY);
-
-    if (NewLibraryHandle) {
-        Library->LibHandle = NewLibraryHandle;
-
-        if (Library->LoaderFunc) {
-            Library->LoaderFunc(Library, Library->LoaderUserData);
-        }
-    }
     return true;
 }
 
 
 // Shortcut to grabbing a single function.
-void* DynamicFunction(char* FunctionName, char* FunctionSource)
-{
+void* DynamicFunction(char* FunctionName, char* FunctionSource) {
+
     char FileNameSO[256];
     snprintf(FileNameSO, sizeof(FileNameSO), "%s.so", FunctionName);
 
