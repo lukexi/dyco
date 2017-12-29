@@ -61,4 +61,6 @@ void* DynamicFunction(
     char* FunctionName,
     char* FunctionSource);
 
+time_t GetFileModTime(char* FileName);
+
 #endif // DYNAMIC_H

@@ -77,14 +77,18 @@ bool UpdateLibraryFile(library* Library) {
     return false;
 }
 
+time_t GetFileModTime(char* FileName) {
+    struct stat attr = { 0 };
+    stat(FileName, &attr);
+    return attr.st_mtime;
+}
+
 bool RecompileLibrary(library* Library) {
     if (!Library) return false;
 
     // If the source is a C file, check if it's been updated.
     if (IsCFileName(Library->Source)) {
-        struct stat attr = { 0 };
-        stat(Library->Source, &attr);
-        time_t NewModTime = attr.st_mtime;
+        time_t NewModTime = GetFileModTime(Library->Source);
         if (NewModTime == Library->LastModTime) return false;
 
         Library->LastModTime = NewModTime;

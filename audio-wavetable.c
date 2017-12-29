@@ -1,5 +1,6 @@
 #include "audio-interface.h"
 #include <math.h>
+#include <memory.h>
 #include <stdlib.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -51,16 +52,20 @@ int TickUGen(jack_nframes_t NumFrames, void *Arg) {
     if (!Initialized) Initialize();
 
     audio_state *AudioState = (audio_state*)Arg;
-    float* OutLeft  = (float*)jack_port_get_buffer(AudioState->OutputPortLeft,  NumFrames);
-    float* OutRight = (float*)jack_port_get_buffer(AudioState->OutputPortRight, NumFrames);
+    float* OutLeftS  = (float*)jack_port_get_buffer(AudioState->OutputPortLeft,  NumFrames);
+    float* OutRightS = (float*)jack_port_get_buffer(AudioState->OutputPortRight, NumFrames);
+    float* OutLeft = OutLeftS;
+    float* OutRight = OutRightS;
 
     const jack_nframes_t SampleRate = jack_get_sample_rate(AudioState->Client);
     static int Seq = 1;
+
+
     for (int SampleIndex = 0; SampleIndex < NumFrames; SampleIndex++) {
         float Mix = sin((float)(GlobalPhase%SampleRate) / SampleRate * 1 * TAU) * 0.5 + 0.5;
-
         float Wave1 = SawWave[ (int)(GlobalPhase*Seq) % 512 ];
         float Wave2 = SquWave[ (int)(GlobalPhase*Seq) % 512 ];
+        // Mix=0;
 
         Wave1 += SawWave[ (int)(GlobalPhase*Seq*1.5) % 512 ];
         Wave2 += SquWave[ (int)(GlobalPhase*Seq*1.5) % 512 ];
@@ -76,8 +81,20 @@ int TickUGen(jack_nframes_t NumFrames, void *Arg) {
         GlobalPhase++;
 
 
-        if ((GlobalPhase%(SampleRate/8)) == 0) Seq = rand() % 7 + 1;
+        if ((GlobalPhase%(SampleRate/10)) == 0) Seq = rand() % 7 + 1;
     }
+
+    const size_t BlockSize = sizeof(float) * NumFrames;
+    audio_block TapL;
+    audio_block TapR;
+    TapL.Length = NumFrames;
+    TapR.Length = NumFrames;
+    TapL.Samples = malloc(BlockSize);
+    TapR.Samples = malloc(BlockSize);
+    memcpy(TapL.Samples, OutLeftS, BlockSize);
+    memcpy(TapR.Samples, OutRightS, BlockSize);
+    WriteRingBuffer(&AudioState->AudioTapL, &TapL, 1);
+    WriteRingBuffer(&AudioState->AudioTapR, &TapR, 1);
 
     return 0;
 }

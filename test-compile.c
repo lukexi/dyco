@@ -6,7 +6,7 @@
 int (*Foo) (void);
 
 void FooLoader(library* Library, void* UserData) {
-    void* FunctionHandle = dlsym(Library->LibHandle, "Foo");
+    void* FunctionHandle = GetLibrarySymbol(Library, "Foo");
 
     if (FunctionHandle) {
         Foo = FunctionHandle;
