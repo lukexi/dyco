@@ -5,12 +5,6 @@
 #include <stdbool.h>
 #include <stdio.h>
 
-bool Initialized;
-float SinWave[512];
-float SawWave[512];
-float SquWave[512];
-float TriWave[512];
-
 float MajorScale[] = {0,2,4,5,7,9,11};
 #define RAND_FLOAT ((float)rand() / (float)RAND_MAX)
 #define RAND_INT(Lo, Hi) (Lo + (rand() % (Hi - Lo)))
@@ -20,32 +14,7 @@ float MajorScale[] = {0,2,4,5,7,9,11};
 #define ARRAY_END(Array) (Array + ARRAY_SIZE(Array))
 #define RANDOM_ITEM(Array) (Array[(int)floor(RAND_FLOAT * ARRAY_SIZE(Array))])
 
-
 const double TAU = M_PI * 2;
-
-void Initialize() {
-    for (int I = 0; I < 512; I++) {
-        float PhaseR = (float)I / (float)512 * TAU;
-        SinWave[I] = sin(PhaseR);
-
-        const int NumPartials = 10;
-        for (int K = 1; K < NumPartials; K++) {
-            SawWave[I] += pow(-1, K) * sin(K * PhaseR) / (float)K;
-        }
-        SawWave[I] *= 2/M_PI;
-
-        for (int K = 1; K < NumPartials; K++) {
-            SquWave[I] += sin(PhaseR*(2*K-1)) / (float)(2*K-1);
-        }
-        SquWave[I] *= 4/M_PI;
-
-        for (int K = 0; K < NumPartials; K++) {
-            TriWave[I] += pow(-1, K) * pow(2*K+1, -2) * sin(PhaseR*(2*K+1));
-        }
-    }
-
-    Initialized = true;
-}
 
 float TransposeRatio(float Semitones) {
     return pow(2, Semitones/12);
@@ -73,16 +42,17 @@ float Clamp(float x, float lowerlimit, float upperlimit) {
   return x;
 }
 
-float Smoothstep(float edge0, float edge1, float x) {
-  // Scale, bias and saturate x to 0..1 range
-  x = Clamp((x - edge0) / (edge1 - edge0), 0.0, 1.0);
-  // Evaluate polynomial
-  return x * x * (3 - 2 * x);
-}
-
 float Lerp(float From, float To, float X) {
     return From + ((To - From) * Clamp(X, 0, 1));
 }
+
+
+
+bool Initialized;
+float SinWave[512];
+float SawWave[512];
+float SquWave[512];
+float TriWave[512];
 
 typedef struct {
     double Phase;
@@ -119,6 +89,44 @@ float TickOscillator(oscillator* Oscillator, int SampleRate, float* Wavetable) {
     return Wavetable[Index];
 }
 
+
+
+
+
+
+void Initialize() {
+    for (int I = 0; I < 512; I++) {
+        float PhaseR = (float)I / (float)512 * TAU;
+        SinWave[I] = sin(PhaseR);
+
+        const int NumPartials = 30;
+        for (int K = 1; K < NumPartials; K++) {
+            SawWave[I] += pow(-1, K) * sin(K * PhaseR) / (float)K;
+        }
+        SawWave[I] *= 2/M_PI;
+
+        for (int K = 1; K < NumPartials; K++) {
+            SquWave[I] += sin(PhaseR*(2*K-1)) / (float)(2*K-1);
+        }
+        SquWave[I] *= 4/M_PI;
+
+        for (int K = 0; K < NumPartials; K++) {
+            TriWave[I] += pow(-1, K) * pow(2*K+1, -2) * sin(PhaseR*(2*K+1));
+        }
+    }
+    float BaseFreq = MIDIToFreq(60);
+
+    SetFreq(&Osc[0], BaseFreq, 60);
+    SetFreq(&Osc[1], BaseFreq, 60);
+    SetFreq(&Osc[2], BaseFreq, 60);
+    SetFreq(&Osc[3], BaseFreq, 60);
+
+    Initialized = true;
+}
+
+
+
+
 long GlobalPhase = 0;
 
 int TickUGen(jack_nframes_t NumFrames, void *Arg) {
@@ -133,15 +141,15 @@ int TickUGen(jack_nframes_t NumFrames, void *Arg) {
     const jack_nframes_t SampleRate = jack_get_sample_rate(AudioState->Client);
 
 
-    SetFreq(&LFO, 1, 0);
+    SetFreq(&LFO, 0.1, 0);
     for (int SampleIndex = 0; SampleIndex < NumFrames; SampleIndex++) {
 
         float Mix = TickOscillator(&LFO, SampleRate, SinWave) * 0.5 + 0.5;
 
         float Wave1 = TickOscillator(&Osc[0], SampleRate, SawWave);
         float Wave2 = TickOscillator(&Osc[1], SampleRate, SquWave);
-        Wave1 += TickOscillator(&Osc[2], SampleRate, SawWave);
-        Wave2 += TickOscillator(&Osc[3], SampleRate, SquWave);
+        Wave1 += TickOscillator(&Osc[2], SampleRate, SinWave);
+        Wave2 += TickOscillator(&Osc[3], SampleRate, TriWave);
 
         float OutputL = Wave1*Mix + Wave2*(1-Mix);
         float OutputR = Wave1*(1-Mix) + Wave2*Mix;
@@ -153,19 +161,18 @@ int TickUGen(jack_nframes_t NumFrames, void *Arg) {
 
         GlobalPhase++;
 
-        int SeqDur = (SampleRate/4);
+        int SeqDur = (SampleRate/2);
         if ((GlobalPhase%SeqDur) == 0) {
-
 
             int BaseNote = RANDOM_ITEM(MajorScale)
                 + RAND_INT(0,3) * 12 + 40; // rand() % 24 + 30;
             float BaseFreq = MIDIToFreq(BaseNote);
             // BaseFreq = floor(BaseFreq);
 
-            SetFreq(&Osc[0], BaseFreq*1.001,                   25);
-            SetFreq(&Osc[1], BaseFreq*0.999,                   25);
-            SetFreq(&Osc[2], BaseFreq*TransposeRatio(3)*1.001, 25);
-            SetFreq(&Osc[3], BaseFreq*TransposeRatio(3)*0.999, 25);
+            SetFreq(&Osc[0], BaseFreq*TransposeRatio(1), 50);
+            SetFreq(&Osc[1], BaseFreq*TransposeRatio(4), 50);
+            SetFreq(&Osc[2], BaseFreq*TransposeRatio(8), 50);
+            SetFreq(&Osc[3], BaseFreq*TransposeRatio(11), 50);
         }
     }
 
