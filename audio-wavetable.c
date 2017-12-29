@@ -11,6 +11,16 @@ float SawWave[512];
 float SquWave[512];
 float TriWave[512];
 
+float MajorScale[] = {0,2,4,5,7,9,11};
+#define RAND_FLOAT ((float)rand() / (float)RAND_MAX)
+#define RAND_INT(Lo, Hi) (Lo + (rand() % (Hi - Lo)))
+#define RAND_RANGE(Lo, Hi) (Lo+RAND_FLOAT*(Hi-Lo))
+
+#define ARRAY_SIZE(Array) (sizeof(Array) / sizeof(*Array))
+#define ARRAY_END(Array) (Array + ARRAY_SIZE(Array))
+#define RANDOM_ITEM(Array) (Array[(int)floor(RAND_FLOAT * ARRAY_SIZE(Array))])
+
+
 const double TAU = M_PI * 2;
 
 void Initialize() {
@@ -37,6 +47,15 @@ void Initialize() {
     Initialized = true;
 }
 
+float TransposeRatio(float Semitones) {
+    return pow(2, Semitones/12);
+}
+
+float MIDIToFreq(float MIDINote) {
+    const float A440Note = 69;
+    return 440 * TransposeRatio(MIDINote - A440Note);
+}
+
 float RandomFloat() {
     return (float)rand() / (float)RAND_MAX;
 }
@@ -44,6 +63,60 @@ float RandomFloat() {
 float RandomRange(float Low, float High) {
     const float Range = High-Low;
     return Low + Range * RandomFloat();
+}
+
+float Clamp(float x, float lowerlimit, float upperlimit) {
+  if (x < lowerlimit)
+    x = lowerlimit;
+  if (x > upperlimit)
+    x = upperlimit;
+  return x;
+}
+
+float Smoothstep(float edge0, float edge1, float x) {
+  // Scale, bias and saturate x to 0..1 range
+  x = Clamp((x - edge0) / (edge1 - edge0), 0.0, 1.0);
+  // Evaluate polynomial
+  return x * x * (3 - 2 * x);
+}
+
+float Lerp(float From, float To, float X) {
+    return From + ((To - From) * Clamp(X, 0, 1));
+}
+
+typedef struct {
+    double Phase;
+    float Freq;
+    float OldFreq;
+    float NewFreq;
+    float Slew;
+    float SlewRate;
+} oscillator;
+
+oscillator Osc[4];
+oscillator LFO;
+
+void SetFreq(oscillator* Oscillator, float Freq, float SlewRate) {
+    Oscillator->OldFreq = Oscillator->Freq;
+    Oscillator->NewFreq = Freq;
+    Oscillator->Slew = 0;
+    Oscillator->SlewRate = SlewRate;
+    if (SlewRate <= 0) Oscillator->Freq = Freq;
+}
+
+float TickOscillator(oscillator* Oscillator, int SampleRate, float* Wavetable) {
+    const float T = 1/(float)SampleRate;
+
+    if (Oscillator->SlewRate > 0) {
+        Oscillator->Freq = Lerp(Oscillator->OldFreq, Oscillator->NewFreq, Oscillator->Slew);
+        Oscillator->Slew += T*Oscillator->SlewRate;
+    }
+
+    Oscillator->Phase += T * Oscillator->Freq * 512;
+
+    const int Index = ((int)Oscillator->Phase) % 512;
+
+    return Wavetable[Index];
 }
 
 long GlobalPhase = 0;
@@ -58,17 +131,17 @@ int TickUGen(jack_nframes_t NumFrames, void *Arg) {
     float* OutRight = OutRightS;
 
     const jack_nframes_t SampleRate = jack_get_sample_rate(AudioState->Client);
-    static int Seq = 1;
 
 
+    SetFreq(&LFO, 1, 0);
     for (int SampleIndex = 0; SampleIndex < NumFrames; SampleIndex++) {
-        float Mix = sin((float)(GlobalPhase%SampleRate) / SampleRate * 1 * TAU) * 0.5 + 0.5;
-        float Wave1 = SawWave[ (int)(GlobalPhase*Seq*1.001) % 512 ];
-        float Wave2 = SquWave[ (int)(GlobalPhase*Seq*0.999) % 512 ];
-        // Mix=0;
 
-        Wave1 += SawWave[ (int)(GlobalPhase*Seq*1.5) % 512 ];
-        Wave2 += SquWave[ (int)(GlobalPhase*Seq*1.5*1.001) % 512 ];
+        float Mix = TickOscillator(&LFO, SampleRate, SinWave) * 0.5 + 0.5;
+
+        float Wave1 = TickOscillator(&Osc[0], SampleRate, SawWave);
+        float Wave2 = TickOscillator(&Osc[1], SampleRate, SquWave);
+        Wave1 += TickOscillator(&Osc[2], SampleRate, SawWave);
+        Wave2 += TickOscillator(&Osc[3], SampleRate, SquWave);
 
         float OutputL = Wave1*Mix + Wave2*(1-Mix);
         float OutputR = Wave1*(1-Mix) + Wave2*Mix;
@@ -80,8 +153,20 @@ int TickUGen(jack_nframes_t NumFrames, void *Arg) {
 
         GlobalPhase++;
 
+        int SeqDur = (SampleRate/4);
+        if ((GlobalPhase%SeqDur) == 0) {
 
-        if ((GlobalPhase%(SampleRate/1)) == 0) Seq = rand() % 7 + 1;
+
+            int BaseNote = RANDOM_ITEM(MajorScale)
+                + RAND_INT(0,3) * 12 + 40; // rand() % 24 + 30;
+            float BaseFreq = MIDIToFreq(BaseNote);
+            // BaseFreq = floor(BaseFreq);
+
+            SetFreq(&Osc[0], BaseFreq*1.001,                   25);
+            SetFreq(&Osc[1], BaseFreq*0.999,                   25);
+            SetFreq(&Osc[2], BaseFreq*TransposeRatio(3)*1.001, 25);
+            SetFreq(&Osc[3], BaseFreq*TransposeRatio(3)*0.999, 25);
+        }
     }
 
     const size_t BlockSize = sizeof(float) * NumFrames;

@@ -17,6 +17,8 @@ float AudioR[1024]; int IndexR = 0;
 
 GLuint AudioBufs[2];
 GLuint AudioTexs[2];
+GLuint uAudioIndexL;
+GLuint uAudioIndexR;
 
 time_t ShaderModTime;
 
@@ -35,10 +37,12 @@ void LoadShader() {
         Program = CreateVertFragProgramFromPath("quad.vert", "quad.frag");
         glUseProgram(Program);
 
-        GLuint AudioTexL = glGetUniformLocation(Program, "AudioL");
-        GLuint AudioTexR = glGetUniformLocation(Program, "AudioR");
-        glUniform1i(AudioTexL, 0);
-        glUniform1i(AudioTexR, 1);
+        GLuint uAudioTexL = glGetUniformLocation(Program, "AudioL");
+        GLuint uAudioTexR = glGetUniformLocation(Program, "AudioR");
+        glUniform1i(uAudioTexL, 0);
+        glUniform1i(uAudioTexR, 1);
+        uAudioIndexL = glGetUniformLocation(Program, "IndexL");
+        uAudioIndexR = glGetUniformLocation(Program, "IndexR");
     }
 }
 
@@ -78,24 +82,72 @@ void TickRender(SDL_Window* Window, audio_state* AudioState) {
     while (GetRingBufferReadAvailable(&AudioState->AudioTapL) >= 1) {
         audio_block Block;
         ReadRingBuffer(&AudioState->AudioTapL, &Block, 1);
-        if (IndexL + Block.Length > 1024) IndexL = 0;
+        bool ResetIndex = IndexL + Block.Length > 1024;
+        if (ResetIndex) IndexL = 0;
 
         glBindBuffer(GL_TEXTURE_BUFFER, AudioBufs[0]);
         glBufferSubData(GL_TEXTURE_BUFFER, IndexL*sizeof(float), Block.Length*sizeof(float), Block.Samples);
 
+        static int ScanIndexL = 0;
+        static bool FoundZeroL = false;
+        static float LastValL = 1;
+        if (ResetIndex) {
+            FoundZeroL = false;
+            ScanIndexL = 0;
+            LastValL = 1;
+        }
+
+        if (!FoundZeroL) {
+            const float Trigger = 0;
+            for (int I = 0; I < Block.Length; I++) {
+                float Val = Block.Samples[I];
+                if (LastValL < Trigger && Val >= Trigger)  {
+                    FoundZeroL = true;
+                    break;
+                }
+                LastValL = Val;
+                ScanIndexL++;
+            }
+        }
+
         IndexL += Block.Length;
+        glUniform1i(uAudioIndexL, ScanIndexL);
         free(Block.Samples);
     }
 
     while (GetRingBufferReadAvailable(&AudioState->AudioTapR) >= 1) {
         audio_block Block;
         ReadRingBuffer(&AudioState->AudioTapR, &Block, 1);
-        if (IndexR + Block.Length > 1024) IndexR = 0;
+        bool ResetIndex = IndexR + Block.Length > 1024;
+        if (ResetIndex) IndexR = 0;
 
         glBindBuffer(GL_TEXTURE_BUFFER, AudioBufs[1]);
         glBufferSubData(GL_TEXTURE_BUFFER, IndexR*sizeof(float), Block.Length*sizeof(float), Block.Samples);
 
+        static int ScanIndexR = 0;
+        static bool FoundZeroR = false;
+        static float LastValR = 1;
+        if (ResetIndex) {
+            FoundZeroR = false;
+            ScanIndexR = 0;
+            LastValR = 1;
+        }
+
+        if (!FoundZeroR) {
+            const float Trigger = 0;
+            for (int I = 0; I < Block.Length; I++) {
+                float Val = Block.Samples[I];
+                if (LastValR < Trigger && Val >= Trigger)  {
+                    FoundZeroR = true;
+                    break;
+                }
+                LastValR = Val;
+                ScanIndexR++;
+            }
+        }
+
         IndexR += Block.Length;
+        glUniform1i(uAudioIndexR, ScanIndexR);
         free(Block.Samples);
     }
 

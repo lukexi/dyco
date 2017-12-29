@@ -5,7 +5,7 @@
 #include <fcntl.h>
 #include <sys/types.h>
 
-int CallProcess(const char** Args, const char* StdIn,
+int CallProcess(char* const* Args, const char* StdIn,
     char* OutBuffer, size_t OutBufferSize, size_t* OutLength,
     char* ErrBuffer, size_t ErrBufferSize, size_t* ErrLength)
 {
@@ -66,6 +66,8 @@ int CallProcess(const char** Args, const char* StdIn,
     // Read StdOut/StdErr
     *OutLength = read(StdOutPipe[0], OutBuffer, OutBufferSize);
     *ErrLength = read(StdErrPipe[0], ErrBuffer, ErrBufferSize);
+    close(StdOutPipe[0]);
+    close(StdErrPipe[0]);
 
     return ExitStatus;
 }
