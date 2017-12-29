@@ -30,9 +30,15 @@ void Cleanup() {
 void LoadShader() {
     time_t NewShaderModTime = GetFileModTime("quad.frag");
     if (NewShaderModTime > ShaderModTime) {
+        ShaderModTime = NewShaderModTime;
         glDeleteShader(Program);
         Program = CreateVertFragProgramFromPath("quad.vert", "quad.frag");
-        ShaderModTime = NewShaderModTime;
+        glUseProgram(Program);
+
+        GLuint AudioTexL = glGetUniformLocation(Program, "AudioL");
+        GLuint AudioTexR = glGetUniformLocation(Program, "AudioR");
+        glUniform1i(AudioTexL, 0);
+        glUniform1i(AudioTexR, 1);
     }
 }
 
@@ -41,7 +47,6 @@ void Initialize() {
     QuadVAO = CreateQuad(FullscreenQuadVertices);
 
     LoadShader();
-    glUseProgram(Program);
 
 
     glGenBuffers(2, AudioBufs);
@@ -51,6 +56,13 @@ void Initialize() {
     glBindBuffer(GL_TEXTURE_BUFFER, AudioBufs[0]);
     glBufferData(GL_TEXTURE_BUFFER, 1024 * sizeof(float), NULL, GL_DYNAMIC_DRAW);
     glTexBuffer(GL_TEXTURE_BUFFER, GL_R32F, AudioBufs[0]);
+
+    glBindTexture(GL_TEXTURE_BUFFER, AudioTexs[1]);
+    glBindBuffer(GL_TEXTURE_BUFFER, AudioBufs[1]);
+    glBufferData(GL_TEXTURE_BUFFER, 1024 * sizeof(float), NULL, GL_DYNAMIC_DRAW);
+    glTexBuffer(GL_TEXTURE_BUFFER, GL_R32F, AudioBufs[1]);
+
+
 
     Initialized = true;
 }
@@ -62,17 +74,35 @@ void TickRender(SDL_Window* Window, audio_state* AudioState) {
     glClearColor(0, 0, 0, 1);
     glClear(GL_COLOR_BUFFER_BIT);
 
+
     while (GetRingBufferReadAvailable(&AudioState->AudioTapL) >= 1) {
-        audio_block BlockL;
-        ReadRingBuffer(&AudioState->AudioTapL, &BlockL, 1);
-        if (IndexL + BlockL.Length > 1024) IndexL = 0;
+        audio_block Block;
+        ReadRingBuffer(&AudioState->AudioTapL, &Block, 1);
+        if (IndexL + Block.Length > 1024) IndexL = 0;
 
         glBindBuffer(GL_TEXTURE_BUFFER, AudioBufs[0]);
-        glBufferSubData(GL_TEXTURE_BUFFER, IndexL*sizeof(float), BlockL.Length*sizeof(float), BlockL.Samples);
+        glBufferSubData(GL_TEXTURE_BUFFER, IndexL*sizeof(float), Block.Length*sizeof(float), Block.Samples);
 
-        IndexL += BlockL.Length;
-        free(BlockL.Samples);
+        IndexL += Block.Length;
+        free(Block.Samples);
     }
+
+    while (GetRingBufferReadAvailable(&AudioState->AudioTapR) >= 1) {
+        audio_block Block;
+        ReadRingBuffer(&AudioState->AudioTapR, &Block, 1);
+        if (IndexR + Block.Length > 1024) IndexR = 0;
+
+        glBindBuffer(GL_TEXTURE_BUFFER, AudioBufs[1]);
+        glBufferSubData(GL_TEXTURE_BUFFER, IndexR*sizeof(float), Block.Length*sizeof(float), Block.Samples);
+
+        IndexR += Block.Length;
+        free(Block.Samples);
+    }
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_BUFFER, AudioTexs[0]);
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_BUFFER, AudioTexs[1]);
 
     glBindVertexArray(QuadVAO);
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);

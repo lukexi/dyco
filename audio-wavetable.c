@@ -18,7 +18,7 @@ void Initialize() {
         float PhaseR = (float)I / (float)512 * TAU;
         SinWave[I] = sin(PhaseR);
 
-        const int NumPartials = 30;
+        const int NumPartials = 10;
         for (int K = 1; K < NumPartials; K++) {
             SawWave[I] += pow(-1, K) * sin(K * PhaseR) / (float)K;
         }
@@ -63,12 +63,12 @@ int TickUGen(jack_nframes_t NumFrames, void *Arg) {
 
     for (int SampleIndex = 0; SampleIndex < NumFrames; SampleIndex++) {
         float Mix = sin((float)(GlobalPhase%SampleRate) / SampleRate * 1 * TAU) * 0.5 + 0.5;
-        float Wave1 = SawWave[ (int)(GlobalPhase*Seq) % 512 ];
-        float Wave2 = SquWave[ (int)(GlobalPhase*Seq) % 512 ];
+        float Wave1 = SawWave[ (int)(GlobalPhase*Seq*1.001) % 512 ];
+        float Wave2 = SquWave[ (int)(GlobalPhase*Seq*0.999) % 512 ];
         // Mix=0;
 
         Wave1 += SawWave[ (int)(GlobalPhase*Seq*1.5) % 512 ];
-        Wave2 += SquWave[ (int)(GlobalPhase*Seq*1.5) % 512 ];
+        Wave2 += SquWave[ (int)(GlobalPhase*Seq*1.5*1.001) % 512 ];
 
         float OutputL = Wave1*Mix + Wave2*(1-Mix);
         float OutputR = Wave1*(1-Mix) + Wave2*Mix;
@@ -81,7 +81,7 @@ int TickUGen(jack_nframes_t NumFrames, void *Arg) {
         GlobalPhase++;
 
 
-        if ((GlobalPhase%(SampleRate/10)) == 0) Seq = rand() % 7 + 1;
+        if ((GlobalPhase%(SampleRate/1)) == 0) Seq = rand() % 7 + 1;
     }
 
     const size_t BlockSize = sizeof(float) * NumFrames;
