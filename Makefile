@@ -1,4 +1,4 @@
-all: test-compile.app test-dynfunc.app test-audio.app
+all: test-compile.app test-dynfunc.app test-audio.app test-renderpipeline.app
 
 OBJECTS=process.o compile.o dynamic.o ringbuffer.o pa_ringbuffer.o
 
@@ -8,5 +8,12 @@ OBJECTS=process.o compile.o dynamic.o ringbuffer.o pa_ringbuffer.o
 %.app: %.c $(OBJECTS)
 	clang -o $@ $^
 
-test-audio.app: test-audio.c $(OBJECTS) shader.o quad.o gl.o
-	clang -o $@ $^ `pkg-config --libs --cflags jack SDL2 GLEW` -framework OpenGL
+GL_OBJECTS=gl.o shader.o quad.o framebuffer.o
+GL_FLAGS=`pkg-config --libs SDL2 GLEW` -framework OpenGL
+AUDIO_FLAGS=`pkg-config --libs jack`
+
+test-audio.app: test-audio.c $(OBJECTS) $(GL_OBJECTS)
+	clang -o $@ $^ $(GL_FLAGS) $(AUDIO_FLAGS)
+
+test-renderpipeline.app: test-renderpipeline.c $(OBJECTS) $(GL_OBJECTS)
+	clang -o $@ $^ $(GL_FLAGS)

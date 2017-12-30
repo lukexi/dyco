@@ -120,7 +120,6 @@ int main(int argc, char const *argv[]) {
         RecompileLibrary(AudioState->UGen);
         RecompileLibrary(AudioRender);
 
-
         if (AudioRender->LibraryNeedsReload) {
             void (*Cleanup)(void) = GetLibrarySymbol(AudioRender, "Cleanup");
             if (Cleanup) Cleanup();

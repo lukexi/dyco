@@ -117,7 +117,7 @@ bool RecompileLibrary(library* Library) {
     }
 
     if (ExitCode != 0) {
-        printf("Compilation failed with exit code: %i", ExitCode);
+        printf("Compilation failed with exit code: %i\n", ExitCode);
         return false;
     }
 

@@ -60,7 +60,7 @@ int CallProcess(char* const* Args, const char* StdIn,
         // Wait for the process...
     }
     if (ExitStatus) {
-        printf("Clang exited with error status: %i\n", ExitStatus);
+        printf("Process exited with error status: %i\n", ExitStatus);
     }
 
     // Read StdOut/StdErr

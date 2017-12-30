@@ -2,6 +2,7 @@
 #define DYNAMIC_H
 
 #include <sys/stat.h>
+#include <sys/types.h>
 #include <stdbool.h>
 #include <dlfcn.h>
 
