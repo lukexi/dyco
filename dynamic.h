@@ -15,10 +15,14 @@ struct library {
     time_t LastModTime;
     char*  Name;
     char*  Source;
-    char   CompilationLog[2048];
+    char   CompilationLog[16384];
     size_t CompilationLogLength;
     bool   SourceUpdated;
     bool   LibraryNeedsReload;
+
+    char*  Dependencies[1024];
+    time_t DependenciesModTimes[1024];
+    size_t DependenciesLength;
 
     loader_func LoaderFunc;
     void* LoaderUserData;

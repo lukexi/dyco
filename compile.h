@@ -3,11 +3,11 @@
 #include <stdlib.h>
 #include <stdbool.h>
 
-bool IsCFileName(const char* Source);
+bool IsCFileName(char* Source);
 
 int CompileSource(
-    const char* FileName,
-    const char* Source,
+    char* FileName,
+    char* Source,
     char* ErrBuffer, size_t ErrBufferSize, size_t* ErrLength);
 
 #endif // COMPILE_H

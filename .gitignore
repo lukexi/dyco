@@ -1,4 +1,5 @@
 *.app
 *.o
+*.d
 *.so
 *.so.dSYM

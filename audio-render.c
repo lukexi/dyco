@@ -10,7 +10,8 @@
 bool Initialized = false;
 
 GLuint QuadVAO;
-GLuint Program;
+GLuint Shader;
+time_t ShaderModTime;
 
 float AudioL[1024]; int IndexL = 0;
 float AudioR[1024]; int IndexR = 0;
@@ -20,10 +21,9 @@ GLuint AudioTexs[2];
 GLuint uAudioIndexL;
 GLuint uAudioIndexR;
 
-time_t ShaderModTime;
 
 void Cleanup() {
-    glDeleteShader(Program);
+    glDeleteProgram(Shader);
     glDeleteVertexArrays(1, &QuadVAO);
     glDeleteBuffers(2, AudioBufs);
     glDeleteTextures(2, AudioTexs);
@@ -33,16 +33,16 @@ void LoadShader() {
     time_t NewShaderModTime = GetFileModTime("quad.frag");
     if (NewShaderModTime > ShaderModTime) {
         ShaderModTime = NewShaderModTime;
-        glDeleteShader(Program);
-        Program = CreateVertFragProgramFromPath("quad.vert", "quad.frag");
-        glUseProgram(Program);
+        glDeleteProgram(Shader);
+        Shader = CreateVertFragProgramFromPath("quad.vert", "quad.frag");
+        glUseProgram(Shader);
 
-        GLuint uAudioTexL = glGetUniformLocation(Program, "AudioL");
-        GLuint uAudioTexR = glGetUniformLocation(Program, "AudioR");
+        GLuint uAudioTexL = glGetUniformLocation(Shader, "AudioL");
+        GLuint uAudioTexR = glGetUniformLocation(Shader, "AudioR");
         glUniform1i(uAudioTexL, 0);
         glUniform1i(uAudioTexR, 1);
-        uAudioIndexL = glGetUniformLocation(Program, "IndexL");
-        uAudioIndexR = glGetUniformLocation(Program, "IndexR");
+        uAudioIndexL = glGetUniformLocation(Shader, "IndexL");
+        uAudioIndexR = glGetUniformLocation(Shader, "IndexR");
     }
 }
 

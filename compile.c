@@ -8,41 +8,45 @@
 #define MACOS_DYLIB_FLAGS "-dynamiclib", "-undefined", "dynamic_lookup",
 #define LINUX_DYLIB_FLAGS "-fPIC", "-shared",
 
-#define DEBUG_FLAGS "-fno-omit-frame-pointer",  "-g",
+#define DEBUG_FLAGS "-fno-omit-frame-pointer", "-g",
 #define PERF_FLAGS "-O3",
+// #define DEPS_FLAGS "-MMD",
+#define DEPS_FLAGS
 
-#define COMMON_FLAGS MACOS_DYLIB_FLAGS DEBUG_FLAGS PERF_FLAGS
+#define COMMON_FLAGS MACOS_DYLIB_FLAGS DEBUG_FLAGS PERF_FLAGS DEPS_FLAGS
 
-bool IsCFileName(const char* Source) {
+bool IsCFileName(char* Source) {
     const int Len = strlen(Source);
     return Source[Len-2] == '.' && Source[Len-1] == 'c';
 }
 
 int CompileSource(
-    const char* FileName,
-    const char* Source,
+    char* FileName,
+    char* Source,
     char* ErrBuffer, size_t ErrBufferSize, size_t* ErrLength)
 {
 
-    const char* StdInArgs[] = {
+    char* StdInArgs[] = {
         "clang",
         "-o", FileName,
         COMMON_FLAGS
         "-x", "c", "-", // treat as C file, read from stdin
         NULL
     };
-    const char* FileArgs[] = {
+    char* FileArgs[] = {
         "clang",
         "-o", FileName,
         COMMON_FLAGS
         Source,
         NULL
     };
-    const char** Args = IsCFileName(Source) ? FileArgs : StdInArgs;
+    bool SourceIsFile = IsCFileName(Source);
+    char** Args = SourceIsFile ? FileArgs : StdInArgs;
+    char* StdIn = SourceIsFile ? NULL : Source;
 
     char OutBuffer[1024]; size_t OutLength;
 
-    int ExitCode = CallProcess(Args, Source,
+    int ExitCode = CallProcess(Args, StdIn,
         OutBuffer, sizeof(OutBuffer), &OutLength,
         ErrBuffer, ErrBufferSize, ErrLength);
 

@@ -15,7 +15,7 @@ int CallProcess(char* const* Args, const char* StdIn,
     int StdErrPipe[2]; pipe(StdErrPipe);
 
     // Allow us to read from empty pipes
-    // (We do a manual 'waitpid' to ensure they are ready to ready from)
+    // (We do a manual 'waitpid' to ensure they are ready to read from)
     fcntl(StdOutPipe[0], F_SETFL, O_NONBLOCK);
     fcntl(StdErrPipe[0], F_SETFL, O_NONBLOCK);
 
@@ -68,6 +68,12 @@ int CallProcess(char* const* Args, const char* StdIn,
     *ErrLength = read(StdErrPipe[0], ErrBuffer, ErrBufferSize);
     close(StdOutPipe[0]);
     close(StdErrPipe[0]);
+
+    // NULL-terminate
+    const int LastOutChar = *OutLength < OutBufferSize ? *OutLength : (OutBufferSize-1);
+    OutBuffer[LastOutChar] = '\0';
+    const int LastErrChar = *ErrLength < ErrBufferSize ? *ErrLength : (ErrBufferSize-1);
+    ErrBuffer[LastErrChar] = '\0';
 
     return ExitStatus;
 }
