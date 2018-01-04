@@ -9,11 +9,10 @@
 #define LINUX_DYLIB_FLAGS "-fPIC", "-shared",
 
 #define DEBUG_FLAGS "-fno-omit-frame-pointer", "-g",
-#define PERF_FLAGS "-O3",
-// #define DEPS_FLAGS "-MMD",
-#define DEPS_FLAGS
+// #define PERF_FLAGS "-O3",
+#define PERF_FLAGS
 
-#define COMMON_FLAGS MACOS_DYLIB_FLAGS DEBUG_FLAGS PERF_FLAGS DEPS_FLAGS
+#define COMMON_FLAGS MACOS_DYLIB_FLAGS DEBUG_FLAGS PERF_FLAGS
 
 bool IsCFileName(char* Source) {
     const int Len = strlen(Source);

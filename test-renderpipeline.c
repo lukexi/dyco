@@ -8,9 +8,9 @@ int main(int argc, char const *argv[])
     library* RenderPipeline = CreateLibrary(
         "renderpipeline-main",
         "renderpipeline-main.c", NULL, NULL);
-
     void (*TickRenderPipeline)(SDL_Window* Window);
     void (*Cleanup)(void);
+
     TickRenderPipeline = GetLibrarySymbol(RenderPipeline, "TickRenderPipeline");
     Cleanup            = GetLibrarySymbol(RenderPipeline, "Cleanup");
     while (true) {

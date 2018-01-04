@@ -6,6 +6,30 @@
 #include "shader.h"
 #include "quad.h"
 #include "dynamic.h"
+#include "utils.h"
+
+// Returns trigger index or -1 if not found yet.
+int FindOscilloscopeTrigger(float* Samples, int Length) {
+    float Level; // Value to trigger at (on rising slope)
+    int   NextScanIndex;
+    float LastVal;
+
+    Level         = 0;
+    NextScanIndex = 0;
+    LastVal       = 1;
+
+    for (int I = 0; I < Length; I++) {
+        float Val = Samples[I];
+        if (LastVal < Level && Val >= Level)  {
+            return NextScanIndex;
+        }
+        LastVal = Val;
+        NextScanIndex++;
+    }
+    return 0;
+}
+
+
 
 bool Initialized = false;
 
@@ -13,36 +37,35 @@ GLuint QuadVAO;
 GLuint Shader;
 time_t ShaderModTime;
 
-float AudioL[1024]; int IndexL = 0;
-float AudioR[1024]; int IndexR = 0;
+#define BUFFER_SIZE 512
 
-GLuint AudioBufs[2];
-GLuint AudioTexs[2];
-GLuint uAudioIndexL;
-GLuint uAudioIndexR;
+int AudioBufIndexes[3];
+GLuint AudioBufs[3];
+GLuint AudioTexs[3];
 
+float TempBuffers[3][BUFFER_SIZE*2];
 
 void Cleanup() {
     glDeleteProgram(Shader);
     glDeleteVertexArrays(1, &QuadVAO);
-    glDeleteBuffers(2, AudioBufs);
-    glDeleteTextures(2, AudioTexs);
+    glDeleteBuffers(3, AudioBufs);
+    glDeleteTextures(3, AudioTexs);
 }
 
 void LoadShader() {
-    time_t NewShaderModTime = GetFileModTime("quad.frag");
+    time_t NewShaderModTime = GetFileModTime("audio-render.frag");
     if (NewShaderModTime > ShaderModTime) {
         ShaderModTime = NewShaderModTime;
         glDeleteProgram(Shader);
-        Shader = CreateVertFragProgramFromPath("quad.vert", "quad.frag");
+        Shader = CreateVertFragProgramFromPath("quad.vert", "audio-render.frag");
         glUseProgram(Shader);
 
-        GLuint uAudioTexL = glGetUniformLocation(Shader, "AudioL");
-        GLuint uAudioTexR = glGetUniformLocation(Shader, "AudioR");
-        glUniform1i(uAudioTexL, 0);
-        glUniform1i(uAudioTexR, 1);
-        uAudioIndexL = glGetUniformLocation(Shader, "IndexL");
-        uAudioIndexR = glGetUniformLocation(Shader, "IndexR");
+        glUniform1i(glGetUniformLocation(Shader, "AudioRed"), 0);
+        glUniform1i(glGetUniformLocation(Shader, "AudioGrn"), 1);
+        glUniform1i(glGetUniformLocation(Shader, "AudioBlu"), 2);
+
+
+        glUniform1i(glGetUniformLocation(Shader, "BufferSize"), BUFFER_SIZE);
     }
 }
 
@@ -53,22 +76,57 @@ void Initialize() {
     LoadShader();
 
 
-    glGenBuffers(2, AudioBufs);
-    glGenTextures(2, AudioTexs);
+    glGenBuffers(3, AudioBufs);
+    glGenTextures(3, AudioTexs);
 
-    glBindTexture(GL_TEXTURE_BUFFER, AudioTexs[0]);
-    glBindBuffer(GL_TEXTURE_BUFFER, AudioBufs[0]);
-    glBufferData(GL_TEXTURE_BUFFER, 1024 * sizeof(float), NULL, GL_DYNAMIC_DRAW);
-    glTexBuffer(GL_TEXTURE_BUFFER, GL_R32F, AudioBufs[0]);
-
-    glBindTexture(GL_TEXTURE_BUFFER, AudioTexs[1]);
-    glBindBuffer(GL_TEXTURE_BUFFER, AudioBufs[1]);
-    glBufferData(GL_TEXTURE_BUFFER, 1024 * sizeof(float), NULL, GL_DYNAMIC_DRAW);
-    glTexBuffer(GL_TEXTURE_BUFFER, GL_R32F, AudioBufs[1]);
-
-
+    for (int I = 0; I < 3; I++) {
+        glBindTexture(GL_TEXTURE_BUFFER, AudioTexs[I]);
+        glBindBuffer(GL_TEXTURE_BUFFER, AudioBufs[I]);
+        glBufferData(GL_TEXTURE_BUFFER, BUFFER_SIZE * sizeof(float), NULL, GL_DYNAMIC_DRAW);
+        glTexBuffer(GL_TEXTURE_BUFFER, GL_R32F, AudioBufs[I]);
+    }
 
     Initialized = true;
+}
+
+void TickAudioTap(ringbuffer* AudioTap, int ID) {
+    float* TempBuffer = TempBuffers[ID];
+    while (GetRingBufferReadAvailable(AudioTap) >= 1) {
+        audio_block Block;
+        ReadRingBuffer(AudioTap, &Block, 1);
+
+        bool ResetIndex = (AudioBufIndexes[ID] + Block.Length) > (BUFFER_SIZE*2);
+        if (ResetIndex) {
+            int TriggerPoint = FindOscilloscopeTrigger(TempBuffer, BUFFER_SIZE*2);
+
+            glBindBuffer(GL_TEXTURE_BUFFER, AudioBufs[ID]);
+            glBufferSubData(GL_TEXTURE_BUFFER,
+                0,
+                BUFFER_SIZE*sizeof(float),
+                TempBuffer+TriggerPoint);
+
+            AudioBufIndexes[ID] = 0;
+
+            // Should move the data after what we uploaded to the beginning of the TempBuffer
+            // and set AudioBufIndexes to its length.
+            // float Tmp[BUFFER_SIZE];
+            // size_t AmountToCopy = BUFFER_SIZE*2 - (TriggerPoint+BUFFER_SIZE);
+            // memcpy(Tmp, TempBuffer+TriggerPoint+BUFFER_SIZE, AmountToCopy*sizeof(float));
+            // memcpy(TempBuffer, Tmp, AmountToCopy*sizeof(float));
+            // AudioBufIndexes[ID] = AmountToCopy;
+        }
+
+        for (int I = 0; I < Block.Length; I++) {
+            TempBuffer[AudioBufIndexes[ID]] = Block.Samples[I];
+            AudioBufIndexes[ID]++;
+        }
+
+        free(Block.Samples);
+        free(Block.Freqs);
+    }
+
+    glActiveTexture(GL_TEXTURE0 + ID);
+    glBindTexture(GL_TEXTURE_BUFFER, AudioTexs[ID]);
 }
 
 void TickRender(SDL_Window* Window, audio_state* AudioState) {
@@ -78,86 +136,15 @@ void TickRender(SDL_Window* Window, audio_state* AudioState) {
     glClearColor(0, 0, 0, 1);
     glClear(GL_COLOR_BUFFER_BIT);
 
-
-    while (GetRingBufferReadAvailable(&AudioState->AudioTapL) >= 1) {
-        audio_block Block;
-        ReadRingBuffer(&AudioState->AudioTapL, &Block, 1);
-        bool ResetIndex = IndexL + Block.Length > 1024;
-        if (ResetIndex) IndexL = 0;
-
-        glBindBuffer(GL_TEXTURE_BUFFER, AudioBufs[0]);
-        glBufferSubData(GL_TEXTURE_BUFFER, IndexL*sizeof(float), Block.Length*sizeof(float), Block.Samples);
-
-        static int ScanIndexL = 0;
-        static bool FoundZeroL = false;
-        static float LastValL = 1;
-        if (ResetIndex) {
-            FoundZeroL = false;
-            ScanIndexL = 0;
-            LastValL = 1;
-        }
-
-        if (!FoundZeroL) {
-            const float Trigger = 0;
-            for (int I = 0; I < Block.Length; I++) {
-                float Val = Block.Samples[I];
-                if (LastValL < Trigger && Val >= Trigger)  {
-                    FoundZeroL = true;
-                    break;
-                }
-                LastValL = Val;
-                ScanIndexL++;
-            }
-        }
-
-        IndexL += Block.Length;
-        glUniform1i(uAudioIndexL, ScanIndexL);
-        free(Block.Samples);
-    }
-
-    while (GetRingBufferReadAvailable(&AudioState->AudioTapR) >= 1) {
-        audio_block Block;
-        ReadRingBuffer(&AudioState->AudioTapR, &Block, 1);
-        bool ResetIndex = IndexR + Block.Length > 1024;
-        if (ResetIndex) IndexR = 0;
-
-        glBindBuffer(GL_TEXTURE_BUFFER, AudioBufs[1]);
-        glBufferSubData(GL_TEXTURE_BUFFER, IndexR*sizeof(float), Block.Length*sizeof(float), Block.Samples);
-
-        static int ScanIndexR = 0;
-        static bool FoundZeroR = false;
-        static float LastValR = 1;
-        if (ResetIndex) {
-            FoundZeroR = false;
-            ScanIndexR = 0;
-            LastValR = 1;
-        }
-
-        if (!FoundZeroR) {
-            const float Trigger = 0;
-            for (int I = 0; I < Block.Length; I++) {
-                float Val = Block.Samples[I];
-                if (LastValR < Trigger && Val >= Trigger)  {
-                    FoundZeroR = true;
-                    break;
-                }
-                LastValR = Val;
-                ScanIndexR++;
-            }
-        }
-
-        IndexR += Block.Length;
-        glUniform1i(uAudioIndexR, ScanIndexR);
-        free(Block.Samples);
-    }
-
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_BUFFER, AudioTexs[0]);
-    glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_BUFFER, AudioTexs[1]);
+    TickAudioTap(&AudioState->AudioTapRed, 0);
+    TickAudioTap(&AudioState->AudioTapGrn, 1);
+    TickAudioTap(&AudioState->AudioTapBlu, 2);
 
     glBindVertexArray(QuadVAO);
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
     SwapWindowQ(Window);
 }
+
+
+

@@ -63,7 +63,7 @@ typedef struct {
     float SlewRate;
 } oscillator;
 
-oscillator Osc[4];
+oscillator Osc[3];
 oscillator LFO;
 
 void SetFreq(oscillator* Oscillator, float Freq, float SlewRate) {
@@ -84,9 +84,19 @@ float TickOscillator(oscillator* Oscillator, int SampleRate, float* Wavetable) {
 
     Oscillator->Phase += T * Oscillator->Freq * 512;
 
-    const int Index = ((int)Oscillator->Phase) % 512;
+    // Linear interpolation
+    double Integral;
+    const float Fractional = modf(Oscillator->Phase, &Integral);
+    const int Index0 = ((int)Oscillator->Phase + 0) % 512;
+    const int Index1 = ((int)Oscillator->Phase + 1) % 512;
+    const float Amplitude = ((1-Fractional) * Wavetable[Index0]) +
+                            (Fractional * Wavetable[Index1]);
 
-    return Wavetable[Index];
+    // No interpolation
+    // const int Index = ((int)Oscillator->Phase) % 512;
+    // const float Amplitude = Wavetable[Index];
+
+    return Amplitude;
 }
 
 
@@ -116,16 +126,19 @@ void Initialize() {
     }
     float BaseFreq = MIDIToFreq(60);
 
-    SetFreq(&Osc[0], BaseFreq, 60);
-    SetFreq(&Osc[1], BaseFreq, 60);
-    SetFreq(&Osc[2], BaseFreq, 60);
-    SetFreq(&Osc[3], BaseFreq, 60);
+    SetFreq(&Osc[0], BaseFreq, 0);
+    SetFreq(&Osc[1], BaseFreq, 0);
+    SetFreq(&Osc[2], BaseFreq, 0);
 
     Initialized = true;
 }
 
 
-
+void InitTap(audio_block* Tap, int NumFrames) {
+    Tap->Samples = malloc(sizeof(float) * NumFrames);
+    Tap->Freqs   = malloc(sizeof(float) * NumFrames);
+    Tap->Length = NumFrames;
+}
 
 long GlobalPhase = 0;
 
@@ -133,12 +146,26 @@ int TickUGen(jack_nframes_t NumFrames, void *Arg) {
     if (!Initialized) Initialize();
 
     audio_state *AudioState = (audio_state*)Arg;
-    float* OutLeftS  = (float*)jack_port_get_buffer(AudioState->OutputPortLeft,  NumFrames);
-    float* OutRightS = (float*)jack_port_get_buffer(AudioState->OutputPortRight, NumFrames);
-    float* OutLeft = OutLeftS;
-    float* OutRight = OutRightS;
+    float* OutLeft  = (float*)jack_port_get_buffer(AudioState->OutputPortLeft,  NumFrames);
+    float* OutRight = (float*)jack_port_get_buffer(AudioState->OutputPortRight, NumFrames);
 
     const jack_nframes_t SampleRate = jack_get_sample_rate(AudioState->Client);
+
+
+    audio_block TapRed;
+    InitTap(&TapRed, NumFrames);
+    float* TapRedIn     = TapRed.Samples;
+    float* TapRedFreqIn = TapRed.Freqs;
+
+    audio_block TapGrn;
+    InitTap(&TapGrn, NumFrames);
+    float* TapGrnIn     = TapGrn.Samples;
+    float* TapGrnFreqIn = TapGrn.Freqs;
+
+    audio_block TapBlu;
+    InitTap(&TapBlu, NumFrames);
+    float* TapBluIn     = TapBlu.Samples;
+    float* TapBluFreqIn = TapBlu.Freqs;
 
 
     SetFreq(&LFO, 0.1, 0);
@@ -146,47 +173,38 @@ int TickUGen(jack_nframes_t NumFrames, void *Arg) {
 
         float Mix = TickOscillator(&LFO, SampleRate, SinWave) * 0.5 + 0.5;
 
-        float Wave1 = TickOscillator(&Osc[0], SampleRate, SawWave);
-        float Wave2 = TickOscillator(&Osc[1], SampleRate, SquWave);
-        Wave1 += TickOscillator(&Osc[2], SampleRate, SinWave);
-        Wave2 += TickOscillator(&Osc[3], SampleRate, TriWave);
+        float Wave1 = TickOscillator(&Osc[0], SampleRate, SinWave);
+        float Wave2 = TickOscillator(&Osc[1], SampleRate, SinWave);
+        float Wave3 = TickOscillator(&Osc[2], SampleRate, SinWave);
 
-        float OutputL = Wave1*Mix + Wave2*(1-Mix);
-        float OutputR = Wave1*(1-Mix) + Wave2*Mix;
+        *TapRedIn++ = Wave1; *TapRedFreqIn++ = Osc[0].Freq;
+        *TapGrnIn++ = Wave2; *TapGrnFreqIn++ = Osc[1].Freq;
+        *TapBluIn++ = Wave3; *TapBluFreqIn++ = Osc[2].Freq;
 
-        OutputL *= 0.1;
-        OutputR *= 0.1;
-        *OutLeft++  = OutputL;
-        *OutRight++ = OutputR;
+        float OutputL = Wave1*Mix + Wave2*(1-Mix) + Wave3;
+        float OutputR = Wave1*(1-Mix) + Wave2*Mix + Wave3;
+
+        *OutLeft++  = OutputL * 0.3;
+        *OutRight++ = OutputR * 0.3;
 
         GlobalPhase++;
 
-        int SeqDur = (SampleRate/2);
+        int SeqDur = (SampleRate/4);
         if ((GlobalPhase%SeqDur) == 0) {
 
-            int BaseNote = RANDOM_ITEM(MajorScale)
-                + RAND_INT(0,3) * 12 + 40; // rand() % 24 + 30;
-            float BaseFreq = MIDIToFreq(BaseNote);
-            // BaseFreq = floor(BaseFreq);
+            float Freq1 = MIDIToFreq(RANDOM_ITEM(MajorScale) + RAND_INT(0,3) * 12 + 40);
+            float Freq2 = MIDIToFreq(RANDOM_ITEM(MajorScale) + RAND_INT(0,3) * 12 + 40);
+            float Freq3 = MIDIToFreq(RANDOM_ITEM(MajorScale) + RAND_INT(0,3) * 12 + 40);
 
-            SetFreq(&Osc[0], BaseFreq*TransposeRatio(1), 50);
-            SetFreq(&Osc[1], BaseFreq*TransposeRatio(4), 50);
-            SetFreq(&Osc[2], BaseFreq*TransposeRatio(8), 50);
-            SetFreq(&Osc[3], BaseFreq*TransposeRatio(11), 50);
+            SetFreq(&Osc[0], Freq1, 30);
+            SetFreq(&Osc[1], Freq2, 30);
+            SetFreq(&Osc[2], Freq3, 30);
         }
     }
 
-    const size_t BlockSize = sizeof(float) * NumFrames;
-    audio_block TapL;
-    audio_block TapR;
-    TapL.Length = NumFrames;
-    TapR.Length = NumFrames;
-    TapL.Samples = malloc(BlockSize);
-    TapR.Samples = malloc(BlockSize);
-    memcpy(TapL.Samples, OutLeftS, BlockSize);
-    memcpy(TapR.Samples, OutRightS, BlockSize);
-    WriteRingBuffer(&AudioState->AudioTapL, &TapL, 1);
-    WriteRingBuffer(&AudioState->AudioTapR, &TapR, 1);
+    WriteRingBuffer(&AudioState->AudioTapRed, &TapRed, 1);
+    WriteRingBuffer(&AudioState->AudioTapGrn, &TapGrn, 1);
+    WriteRingBuffer(&AudioState->AudioTapBlu, &TapBlu, 1);
 
     return 0;
 }

@@ -1,6 +1,6 @@
 all: test-compile.app test-dynfunc.app test-audio.app test-renderpipeline.app
 
-OBJECTS=process.o compile.o dynamic.o ringbuffer.o pa_ringbuffer.o
+OBJECTS=process.o compile.o dynamic.o ringbuffer.o pa_ringbuffer.o utils.o
 
 %.o: %.c
 	clang -o $@ $^ -c

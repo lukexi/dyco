@@ -17,8 +17,6 @@ char* FooSource2 =
 "    return 321;\n"
 "}\n";
 
-int (*Foo) (void);
-
 int main() {
 
     int (*Foo) (void);

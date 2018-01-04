@@ -87,15 +87,16 @@ int AudioCallback(jack_nframes_t NumFrames, void *UserData) {
         AudioState->TickUGen = GetLibrarySymbol(AudioState->UGen, "TickUGen");
     }
 
-    AudioState->TickUGen(NumFrames, UserData);
+    if (AudioState->TickUGen) AudioState->TickUGen(NumFrames, UserData);
     return 0;
 }
 
 int main(int argc, char const *argv[]) {
     audio_state* AudioState = calloc(1, sizeof(audio_state));
 
-    CreateRingBuffer(&AudioState->AudioTapL, sizeof(audio_block), 64);
-    CreateRingBuffer(&AudioState->AudioTapR, sizeof(audio_block), 64);
+    CreateRingBuffer(&AudioState->AudioTapRed, sizeof(audio_block), 64);
+    CreateRingBuffer(&AudioState->AudioTapGrn, sizeof(audio_block), 64);
+    CreateRingBuffer(&AudioState->AudioTapBlu, sizeof(audio_block), 64);
 
     AudioState->UGen = CreateLibrary(
         "audio-wavetable",

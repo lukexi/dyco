@@ -178,7 +178,6 @@ bool RecompileLibrary(library* Library) {
         if (NewModTime == Library->LastModTime) return false;
 
         Library->LastModTime = NewModTime;
-        printf("%s last updated at %li\n", Library->Name, Library->LastModTime);
     } else if (!Library->SourceUpdated) {
         return false;
     }
