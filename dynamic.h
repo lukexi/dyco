@@ -19,6 +19,7 @@ struct library {
     size_t CompilationLogLength;
     bool   SourceUpdated;
     bool   LibraryNeedsReload;
+    bool   LibraryCompiledSuccessfully;
 
     char*  Dependencies[1024];
     time_t DependenciesModTimes[1024];

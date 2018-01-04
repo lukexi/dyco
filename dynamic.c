@@ -48,26 +48,31 @@ bool ReloadLibrary(library* Library) {
     if (!Library) return false;
     if (!Library->LibraryNeedsReload) return false;
 
+    Library->LibraryNeedsReload = false;
+
+    // Close the old library
     char LibraryFilename[256];
     snprintf(LibraryFilename, sizeof(LibraryFilename), "%s.so", Library->Name);
 
-    // Open the new library
     if (Library->LibHandle) {
         int Result = dlclose(Library->LibHandle);
         if (Result) printf("dlclose error: %i\n", Result);
         Library->LibHandle = NULL;
     }
 
-    void* NewLibraryHandle = dlopen(LibraryFilename, RTLD_LAZY);
+    // Open the new library
+    void* NewLibraryHandle = NULL;
 
-    if (NewLibraryHandle) {
-        Library->LibHandle = NewLibraryHandle;
-
-        if (Library->LoaderFunc) {
-            Library->LoaderFunc(Library, Library->LoaderUserData);
-        }
+    if (Library->LibraryCompiledSuccessfully) {
+        NewLibraryHandle = dlopen(LibraryFilename, RTLD_LAZY | RTLD_GLOBAL);
     }
-    Library->LibraryNeedsReload = false;
+
+    Library->LibHandle = NewLibraryHandle;
+
+    if (Library->LoaderFunc) {
+        Library->LoaderFunc(Library, Library->LoaderUserData);
+    }
+
 
     return true;
 }
@@ -205,12 +210,13 @@ bool RecompileLibrary(library* Library) {
         printf("Compilation log: %s\n", Library->CompilationLog);
     }
 
+    Library->LibraryNeedsReload = true;
+    Library->LibraryCompiledSuccessfully = ExitCode == 0;
+
     if (ExitCode != 0) {
         printf("Compilation failed with exit code: %i\n", ExitCode);
-        return false;
+        return true;
     }
-
-    Library->LibraryNeedsReload = true;
 
     return true;
 }
