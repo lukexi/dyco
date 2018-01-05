@@ -5,54 +5,36 @@
 #include <stdbool.h>
 #include <stdio.h>
 
-float MajorScale[] = {0,2,4,5,7,9,11};
-#define RAND_FLOAT ((float)rand() / (float)RAND_MAX)
-#define RAND_INT(Lo, Hi) (Lo + (rand() % (Hi - Lo)))
-#define RAND_RANGE(Lo, Hi) (Lo+RAND_FLOAT*(Hi-Lo))
-
-#define ARRAY_SIZE(Array) (sizeof(Array) / sizeof(*Array))
-#define ARRAY_END(Array) (Array + ARRAY_SIZE(Array))
-#define RANDOM_ITEM(Array) (Array[(int)floor(RAND_FLOAT * ARRAY_SIZE(Array))])
-
-const double TAU = M_PI * 2;
-
-float TransposeRatio(float Semitones) {
-    return pow(2, Semitones/12);
-}
-
-float MIDIToFreq(float MIDINote) {
-    const float A440Note = 69;
-    return 440 * TransposeRatio(MIDINote - A440Note);
-}
-
-float RandomFloat() {
-    return (float)rand() / (float)RAND_MAX;
-}
-
-float RandomRange(float Low, float High) {
-    const float Range = High-Low;
-    return Low + Range * RandomFloat();
-}
-
-float Clamp(float x, float lowerlimit, float upperlimit) {
-  if (x < lowerlimit)
-    x = lowerlimit;
-  if (x > upperlimit)
-    x = upperlimit;
-  return x;
-}
-
-float Lerp(float From, float To, float X) {
-    return From + ((To - From) * Clamp(X, 0, 1));
-}
-
-
+#include "audio-lib.c"
 
 bool Initialized;
+
 float SinWave[512];
 float SawWave[512];
 float SquWave[512];
 float TriWave[512];
+
+void InitWavetables() {
+    for (int I = 0; I < 512; I++) {
+        float PhaseR = (float)I / (float)512 * TAU;
+        SinWave[I] = sin(PhaseR);
+
+        const int NumPartials = 30;
+        for (int K = 1; K < NumPartials; K++) {
+            SawWave[I] += pow(-1, K) * sin(K * PhaseR) / (float)K;
+        }
+        SawWave[I] *= 2/M_PI;
+
+        for (int K = 1; K < NumPartials; K++) {
+            SquWave[I] += sin(PhaseR*(2*K-1)) / (float)(2*K-1);
+        }
+        SquWave[I] *= 4/M_PI;
+
+        for (int K = 0; K < NumPartials; K++) {
+            TriWave[I] += pow(-1, K) * pow(2*K+1, -2) * sin(PhaseR*(2*K+1));
+        }
+    }
+}
 
 typedef struct {
     double Phase;
@@ -99,31 +81,8 @@ float TickOscillator(oscillator* Oscillator, int SampleRate, float* Wavetable) {
     return Amplitude;
 }
 
-
-
-
-
-
 void Initialize() {
-    for (int I = 0; I < 512; I++) {
-        float PhaseR = (float)I / (float)512 * TAU;
-        SinWave[I] = sin(PhaseR);
-
-        const int NumPartials = 30;
-        for (int K = 1; K < NumPartials; K++) {
-            SawWave[I] += pow(-1, K) * sin(K * PhaseR) / (float)K;
-        }
-        SawWave[I] *= 2/M_PI;
-
-        for (int K = 1; K < NumPartials; K++) {
-            SquWave[I] += sin(PhaseR*(2*K-1)) / (float)(2*K-1);
-        }
-        SquWave[I] *= 4/M_PI;
-
-        for (int K = 0; K < NumPartials; K++) {
-            TriWave[I] += pow(-1, K) * pow(2*K+1, -2) * sin(PhaseR*(2*K+1));
-        }
-    }
+    InitWavetables();
     float BaseFreq = MIDIToFreq(60);
 
     SetFreq(&Osc[0], BaseFreq, 0);
@@ -146,10 +105,10 @@ int TickUGen(jack_nframes_t NumFrames, void *Arg) {
     if (!Initialized) Initialize();
 
     audio_state *AudioState = (audio_state*)Arg;
-    float* OutLeft  = (float*)jack_port_get_buffer(AudioState->OutputPortLeft,  NumFrames);
-    float* OutRight = (float*)jack_port_get_buffer(AudioState->OutputPortRight, NumFrames);
+    float* OutLeft  = (float*)jack_port_get_buffer(AudioState->Jack->OutL, NumFrames);
+    float* OutRight = (float*)jack_port_get_buffer(AudioState->Jack->OutR, NumFrames);
 
-    const jack_nframes_t SampleRate = jack_get_sample_rate(AudioState->Client);
+    const jack_nframes_t SampleRate = jack_get_sample_rate(AudioState->Jack->Client);
 
 
     audio_block TapRed;

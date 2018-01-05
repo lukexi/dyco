@@ -12,7 +12,7 @@ GL_OBJECTS=gl.o shader.o quad.o framebuffer.o
 GL_FLAGS=`pkg-config --libs SDL2 GLEW` -framework OpenGL
 AUDIO_FLAGS=`pkg-config --libs jack`
 
-audio-app.app: audio-app.c $(OBJECTS) $(GL_OBJECTS)
+audio-app.app: audio-app.c $(OBJECTS) $(GL_OBJECTS) audio-jack.o
 	clang -o $@ $^ $(GL_FLAGS) $(AUDIO_FLAGS)
 
 renderpipeline-app.app: renderpipeline-app.c $(OBJECTS) $(GL_OBJECTS)

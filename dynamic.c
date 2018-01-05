@@ -198,7 +198,8 @@ bool RecompileLibrary(library* Library) {
     memset(Library->CompilationLog, 0, sizeof(Library->CompilationLog));
 
     // Save the header dependencies of the source code
-    UpdateDependencies(Library);
+    // TODO
+    // UpdateDependencies(Library);
 
     // Compile the source into a library
     int ExitCode = CompileSource(
