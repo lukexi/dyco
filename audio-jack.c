@@ -46,6 +46,8 @@ jack* StartJack(char* Name, JackProcessCallback ProcessCallback, void *ProcessAr
         return NULL;
     }
 
+    // If no argument, pass ourselves
+    if (ProcessArg == NULL) ProcessArg = Jack;
     jack_set_process_callback(Jack->Client, ProcessCallback, ProcessArg);
 
     if (jack_activate(Jack->Client)) {
