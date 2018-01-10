@@ -21,4 +21,9 @@ float RandomRange(float Low, float High);
 float Clamp(float x, float lowerlimit, float upperlimit);
 float Lerp(float From, float To, float X);
 
+float SinWave[512];
+float SawWave[512];
+float SquWave[512];
+float TriWave[512];
+
 #endif // AUDIO_LIB_H

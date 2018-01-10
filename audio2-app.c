@@ -4,6 +4,7 @@
 #include <memory.h>
 #include "dynamic.h"
 #include "audio-jack.h"
+#include "audio2-interface.h"
 
 library* UGen;
 int (*TickUGen)(uint32_t NumFrames, uint32_t SampleRate, float* OutL, float* OutR);

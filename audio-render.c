@@ -30,95 +30,90 @@ int FindOscilloscopeTrigger(float* Samples, int Length) {
 }
 
 
-
-bool Initialized = false;
-
-GLuint QuadVAO;
-GLuint Shader;
-time_t ShaderModTime;
-
 #define BUFFER_SIZE 512
 
-int AudioBufIndexes[3];
-GLuint AudioBufs[3];
-GLuint AudioTexs[3];
+#define BUFFER_SIZE_2X (BUFFER_SIZE*2)
 
-float TempBuffers[3][BUFFER_SIZE*2];
+typedef struct {
+    float  LocalBuf[BUFFER_SIZE_2X];
+    int    WriteIndex;
+    GLuint TexBuf;
+    GLuint Tex;
+} scope;
+
+
+
+
+
+
+
+typedef struct {
+    GLuint QuadVAO;
+    GLuint Shader;
+    time_t ShaderModTime;
+    scope Scopes[3];
+} r_state;
 
 void Cleanup() {
-    glDeleteProgram(Shader);
-    glDeleteVertexArrays(1, &QuadVAO);
-    glDeleteBuffers(3, AudioBufs);
-    glDeleteTextures(3, AudioTexs);
+    // glDeleteProgram(State->Shader);
+    // glDeleteVertexArrays(1, &QuadVAO);
+
+    // for (int I = 0; I < 3; I++) {
+    //     glDeleteBuffers(1, &Scopes[I].TexBuf);
+    //     glDeleteTextures(1, &Scopes[I].Tex);
+    // }
 }
 
-void LoadShader() {
+void LoadShader(r_state* State) {
     time_t NewShaderModTime = GetFileModTime("audio-render.frag");
-    if (NewShaderModTime > ShaderModTime) {
-        ShaderModTime = NewShaderModTime;
-        glDeleteProgram(Shader);
-        Shader = CreateVertFragProgramFromPath("quad.vert", "audio-render.frag");
-        glUseProgram(Shader);
+    if (NewShaderModTime > State->ShaderModTime) {
+        State->ShaderModTime = NewShaderModTime;
+        glDeleteProgram(State->Shader);
+        State->Shader = CreateVertFragProgramFromPath("quad.vert", "audio-render.frag");
+        glUseProgram(State->Shader);
 
-        glUniform1i(glGetUniformLocation(Shader, "AudioRed"), 0);
-        glUniform1i(glGetUniformLocation(Shader, "AudioGrn"), 1);
-        glUniform1i(glGetUniformLocation(Shader, "AudioBlu"), 2);
+        glUniform1i(glGetUniformLocation(State->Shader, "AudioRed"), 0);
+        glUniform1i(glGetUniformLocation(State->Shader, "AudioGrn"), 1);
+        glUniform1i(glGetUniformLocation(State->Shader, "AudioBlu"), 2);
 
-
-        glUniform1i(glGetUniformLocation(Shader, "BufferSize"), BUFFER_SIZE);
+        glUniform1i(glGetUniformLocation(State->Shader, "BufferSize"), BUFFER_SIZE);
     }
 }
 
-void Initialize() {
 
-    QuadVAO = CreateQuad(FullscreenQuadVertices);
+void TickAudioTap(ringbuffer* AudioTap, int ID, r_state* State) {
+    scope* Scopes = State->Scopes;
+    scope* Scope = &Scopes[ID];
 
-    LoadShader();
-
-
-    glGenBuffers(3, AudioBufs);
-    glGenTextures(3, AudioTexs);
-
-    for (int I = 0; I < 3; I++) {
-        glBindTexture(GL_TEXTURE_BUFFER, AudioTexs[I]);
-        glBindBuffer(GL_TEXTURE_BUFFER, AudioBufs[I]);
-        glBufferData(GL_TEXTURE_BUFFER, BUFFER_SIZE * sizeof(float), NULL, GL_DYNAMIC_DRAW);
-        glTexBuffer(GL_TEXTURE_BUFFER, GL_R32F, AudioBufs[I]);
-    }
-
-    Initialized = true;
-}
-
-void TickAudioTap(ringbuffer* AudioTap, int ID) {
-    float* TempBuffer = TempBuffers[ID];
     while (GetRingBufferReadAvailable(AudioTap) >= 1) {
         audio_block Block;
         ReadRingBuffer(AudioTap, &Block, 1);
 
-        bool ResetIndex = (AudioBufIndexes[ID] + Block.Length) > (BUFFER_SIZE*2);
+        bool ResetIndex = (Scope->WriteIndex + Block.Length) > (BUFFER_SIZE_2X);
         if (ResetIndex) {
-            int TriggerPoint = FindOscilloscopeTrigger(TempBuffer, BUFFER_SIZE*2);
+            int TriggerPoint = FindOscilloscopeTrigger(Scope->LocalBuf, BUFFER_SIZE_2X);
+            if (Scope->WriteIndex - TriggerPoint > BUFFER_SIZE) {
+                glBindBuffer(GL_TEXTURE_BUFFER, Scope->TexBuf);
+                glBufferSubData(GL_TEXTURE_BUFFER,
+                    0,
+                    BUFFER_SIZE*sizeof(float),
+                    &Scope->LocalBuf[TriggerPoint]);
 
-            glBindBuffer(GL_TEXTURE_BUFFER, AudioBufs[ID]);
-            glBufferSubData(GL_TEXTURE_BUFFER,
-                0,
-                BUFFER_SIZE*sizeof(float),
-                TempBuffer+TriggerPoint);
+                // Move the data after what we uploaded to the beginning of the TempBuffer
+                // and set AudioBufIndexes to its length.
+                size_t AmountToCopy = Scope->WriteIndex - (TriggerPoint+BUFFER_SIZE);
+                memmove(&Scope->LocalBuf[0],
+                        &Scope->LocalBuf[TriggerPoint+BUFFER_SIZE],
+                        AmountToCopy*sizeof(float));
 
-            AudioBufIndexes[ID] = 0;
-
-            // Should move the data after what we uploaded to the beginning of the TempBuffer
-            // and set AudioBufIndexes to its length.
-            // float Tmp[BUFFER_SIZE];
-            // size_t AmountToCopy = BUFFER_SIZE*2 - (TriggerPoint+BUFFER_SIZE);
-            // memcpy(Tmp, TempBuffer+TriggerPoint+BUFFER_SIZE, AmountToCopy*sizeof(float));
-            // memcpy(TempBuffer, Tmp, AmountToCopy*sizeof(float));
-            // AudioBufIndexes[ID] = AmountToCopy;
+                Scope->WriteIndex = AmountToCopy;
+            } else {
+                Scope->WriteIndex = 0;
+            }
         }
 
         for (int I = 0; I < Block.Length; I++) {
-            TempBuffer[AudioBufIndexes[ID]] = Block.Samples[I];
-            AudioBufIndexes[ID]++;
+            Scope->LocalBuf[Scope->WriteIndex++] = Block.Samples[I];
         }
 
         free(Block.Samples);
@@ -126,24 +121,45 @@ void TickAudioTap(ringbuffer* AudioTap, int ID) {
     }
 
     glActiveTexture(GL_TEXTURE0 + ID);
-    glBindTexture(GL_TEXTURE_BUFFER, AudioTexs[ID]);
+    glBindTexture(GL_TEXTURE_BUFFER, Scope->Tex);
 }
 
-void TickRender(SDL_Window* Window, audio_state* AudioState) {
-    if (!Initialized) Initialize();
-    LoadShader();
+r_state* TickRender(SDL_Window* Window, audio_state* AudioState, r_state* State) {
+    if (State == NULL) {
+        State = calloc(1, sizeof(r_state));
+        State->QuadVAO = CreateQuad(FullscreenQuadVertices);
+
+        LoadShader(State);
+
+        scope* Scopes = State->Scopes;
+        for (int I = 0; I < 3; I++) {
+
+            glGenBuffers(1, &Scopes[I].TexBuf);
+            glGenTextures(1, &Scopes[I].Tex);
+
+            glBindTexture(GL_TEXTURE_BUFFER, Scopes[I].Tex);
+            glBindBuffer(GL_TEXTURE_BUFFER, Scopes[I].TexBuf);
+            glBufferData(GL_TEXTURE_BUFFER,
+                BUFFER_SIZE * sizeof(float),
+                NULL, GL_DYNAMIC_DRAW);
+            glTexBuffer(GL_TEXTURE_BUFFER, GL_R32F, Scopes[I].TexBuf);
+        }
+    }
+    LoadShader(State);
 
     glClearColor(0, 0, 0, 1);
     glClear(GL_COLOR_BUFFER_BIT);
 
-    TickAudioTap(&AudioState->AudioTapRed, 0);
-    TickAudioTap(&AudioState->AudioTapGrn, 1);
-    TickAudioTap(&AudioState->AudioTapBlu, 2);
+    TickAudioTap(&AudioState->AudioTapRed, 0, State);
+    TickAudioTap(&AudioState->AudioTapGrn, 1, State);
+    TickAudioTap(&AudioState->AudioTapBlu, 2, State);
 
-    glBindVertexArray(QuadVAO);
+    glBindVertexArray(State->QuadVAO);
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
     SwapWindowQ(Window);
+
+    return State;
 }
 
 

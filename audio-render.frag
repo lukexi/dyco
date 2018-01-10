@@ -27,15 +27,14 @@ void main() {
 
     float R, G, B;
     R=G=B=0;
-    R+=RedWave>0?RedWave:0;
-    G+=GrnWave>0?GrnWave:0;
-    B+=BluWave>0?BluWave:0;
-    R+=BluWave<0?-BluWave:0;
-    G+=GrnWave<0?-GrnWave:0;
-    B+=RedWave<0?-RedWave:0;
-    // R += Plot(vUV, RedWave * 0.5 + 0.25, 0.01);
-    // G += Plot(vUV, GrnWave * 0.5 + 0.25, 0.01);
-    // B += Plot(vUV, BluWave * 0.5 + 0.25, 0.01);
-    // if (int(vUV.x*BufferSize) == IndexRed) G=B=1;
+    // R+=RedWave>0?RedWave:0;
+    // G+=GrnWave>0?GrnWave:0;
+    // B+=BluWave>0?BluWave:0;
+    // R+=BluWave<0?-BluWave:0;
+    // G+=GrnWave<0?-GrnWave:0;
+    // B+=RedWave<0?-RedWave:0;
+    R += Plot(vUV, RedWave * 0.5 + 0.25, 0.01);
+    G += Plot(vUV, GrnWave * 0.5 + 0.25, 0.01);
+    B += Plot(vUV, BluWave * 0.5 + 0.25, 0.01);
     fragColor = vec4(R, G, B, 1);
 }

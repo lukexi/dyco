@@ -8,6 +8,7 @@
 typedef struct {
     float* Samples;
     float* Freqs;
+    int BlockID;
     size_t Length;
 } audio_block;
 

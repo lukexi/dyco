@@ -45,8 +45,9 @@ int main(int argc, char const *argv[]) {
 
     SDL_Window* Window = CreateWindow("Wavetable", 10,10, 1024,768);
 
-    void (*TickRender)(SDL_Window* Window, audio_state* AudioState);
+    void* (*TickRender)(SDL_Window* Window, audio_state* AudioState, void* State);
     TickRender = GetLibrarySymbol(AudioRender, "TickRender");
+    void* State = NULL;
     while (true) {
         RecompileLibrary(AudioState->UGen);
         RecompileLibrary(AudioRender);
@@ -58,7 +59,7 @@ int main(int argc, char const *argv[]) {
             TickRender = GetLibrarySymbol(AudioRender, "TickRender");
         }
 
-        if (TickRender) TickRender(Window, AudioState);
+        if (TickRender) State = TickRender(Window, AudioState, State);
     }
 
 

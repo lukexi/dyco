@@ -7,35 +7,6 @@
 
 #include "audio-lib.c"
 
-bool Initialized;
-
-float SinWave[512];
-float SawWave[512];
-float SquWave[512];
-float TriWave[512];
-
-void InitWavetables() {
-    for (int I = 0; I < 512; I++) {
-        float PhaseR = (float)I / (float)512 * TAU;
-        SinWave[I] = sin(PhaseR);
-
-        const int NumPartials = 30;
-        for (int K = 1; K < NumPartials; K++) {
-            SawWave[I] += pow(-1, K) * sin(K * PhaseR) / (float)K;
-        }
-        SawWave[I] *= 2/M_PI;
-
-        for (int K = 1; K < NumPartials; K++) {
-            SquWave[I] += sin(PhaseR*(2*K-1)) / (float)(2*K-1);
-        }
-        SquWave[I] *= 4/M_PI;
-
-        for (int K = 0; K < NumPartials; K++) {
-            TriWave[I] += pow(-1, K) * pow(2*K+1, -2) * sin(PhaseR*(2*K+1));
-        }
-    }
-}
-
 typedef struct {
     double Phase;
     float Freq;
@@ -44,9 +15,6 @@ typedef struct {
     float Slew;
     float SlewRate;
 } oscillator;
-
-oscillator Osc[3];
-oscillator LFO;
 
 void SetFreq(oscillator* Oscillator, float Freq, float SlewRate) {
     Oscillator->OldFreq = Oscillator->Freq;
@@ -81,28 +49,28 @@ float TickOscillator(oscillator* Oscillator, int SampleRate, float* Wavetable) {
     return Amplitude;
 }
 
-void Initialize() {
-    InitWavetables();
-    float BaseFreq = MIDIToFreq(60);
-
-    SetFreq(&Osc[0], BaseFreq, 0);
-    SetFreq(&Osc[1], BaseFreq, 0);
-    SetFreq(&Osc[2], BaseFreq, 0);
-
-    Initialized = true;
-}
-
-
 void InitTap(audio_block* Tap, int NumFrames) {
     Tap->Samples = malloc(sizeof(float) * NumFrames);
     Tap->Freqs   = malloc(sizeof(float) * NumFrames);
     Tap->Length = NumFrames;
 }
 
-long GlobalPhase = 0;
-
 int TickUGen(jack_nframes_t NumFrames, void *Arg) {
-    if (!Initialized) Initialize();
+    static long GlobalPhase = 0;
+    static oscillator Osc[3];
+    static oscillator LFO;
+    static bool Initialized = false;
+
+    if (!Initialized) {
+        InitWavetables();
+        float BaseFreq = MIDIToFreq(60);
+
+        SetFreq(&Osc[0], BaseFreq, 0);
+        SetFreq(&Osc[1], BaseFreq, 0);
+        SetFreq(&Osc[2], BaseFreq, 0);
+
+        Initialized = true;
+    }
 
     audio_state *AudioState = (audio_state*)Arg;
     float* OutLeft  = (float*)jack_port_get_buffer(AudioState->Jack->OutL, NumFrames);
@@ -133,8 +101,8 @@ int TickUGen(jack_nframes_t NumFrames, void *Arg) {
         float Mix = TickOscillator(&LFO, SampleRate, SinWave) * 0.5 + 0.5;
 
         float Wave1 = TickOscillator(&Osc[0], SampleRate, SinWave);
-        float Wave2 = TickOscillator(&Osc[1], SampleRate, SinWave);
-        float Wave3 = TickOscillator(&Osc[2], SampleRate, SinWave);
+        float Wave2 = TickOscillator(&Osc[1], SampleRate, SawWave);
+        float Wave3 = TickOscillator(&Osc[2], SampleRate, SquWave);
 
         *TapRedIn++ = Wave1; *TapRedFreqIn++ = Osc[0].Freq;
         *TapGrnIn++ = Wave2; *TapGrnFreqIn++ = Osc[1].Freq;
@@ -148,12 +116,12 @@ int TickUGen(jack_nframes_t NumFrames, void *Arg) {
 
         GlobalPhase++;
 
-        int SeqDur = (SampleRate/4);
+        int SeqDur = (SampleRate/8);
         if ((GlobalPhase%SeqDur) == 0) {
 
-            float Freq1 = MIDIToFreq(RANDOM_ITEM(MajorScale) + RAND_INT(0,3) * 12 + 40);
-            float Freq2 = MIDIToFreq(RANDOM_ITEM(MajorScale) + RAND_INT(0,3) * 12 + 40);
-            float Freq3 = MIDIToFreq(RANDOM_ITEM(MajorScale) + RAND_INT(0,3) * 12 + 40);
+            float Freq1 = MIDIToFreq(RANDOM_ITEM(MajorScale) + RAND_INT(0,3) * 12 + 50);
+            float Freq2 = MIDIToFreq(RANDOM_ITEM(MajorScale) + RAND_INT(0,3) * 12 + 50);
+            float Freq3 = MIDIToFreq(RANDOM_ITEM(MajorScale) + RAND_INT(0,3) * 12 + 50);
 
             SetFreq(&Osc[0], Freq1, 30);
             SetFreq(&Osc[1], Freq2, 30);

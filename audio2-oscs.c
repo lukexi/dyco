@@ -4,55 +4,61 @@
 #include <stdio.h>
 #include "audio-lib.c"
 
-float SinWave[512];
-float SawWave[512];
-float SquWave[512];
-float TriWave[512];
+#include "audio2-interface.h"
 
-void InitWavetables() {
-    for (int I = 0; I < 512; I++) {
-        float PhaseR = (float)I / (float)512 * TAU;
-        SinWave[I] = sin(PhaseR);
 
-        const int NumPartials = 30;
-
-        for (int K = 1; K < NumPartials; K++) SawWave[I] += pow(-1, K) * sin(K * PhaseR) / (float)K;
-        SawWave[I] *= 2/M_PI;
-
-        for (int K = 1; K < NumPartials; K++) SquWave[I] += sin(PhaseR*(2*K-1)) / (float)(2*K-1);
-        SquWave[I] *= 4/M_PI;
-
-        for (int K = 0; K < NumPartials; K++) TriWave[I] += pow(-1, K) * pow(2*K+1, -2) * sin(PhaseR*(2*K+1));
-    }
-}
-
-bool Initialized = false;
-void Initialize() {
-    Initialized = true;
-    InitWavetables();
-}
 
 typedef struct {
     double Phase;
+    float Out[BLOCK_SIZE];
 } oscillator;
+
+typedef struct ugen ugen;
+
+struct ugen {
+    size_t StateSize; // A ugen implements StateSize to return the size of the struct it uses for state
+    void*  State;     // A ugen implements Initialize to take a (StateSize-sized) pointer to memory it can use and fill it appropriately
+
+    void(*Tick)(ugen State);
+
+    float** Inputs;
+    float** Outputs;
+};
 
 oscillator Osc1;
 oscillator Osc2;
+oscillator Osc3;
 
-float TickOsc(oscillator* Osc, int SampleRate, float Freq, float* Wavetable) {
+typedef struct {
+
+} oscillator;
+
+void Initialize() {
+    static bool Initialized = false;
+    if (Initialized) return;
+    InitWavetables();
+
+
+
+    Initialized = true;
+}
+
+float Osc(oscillator* Osc, int SampleRate, float Freq, float* Wavetable) {
     const float Step = 1/(float)SampleRate;
-    Osc->Phase += Step * Freq * 512;
-    const int Index = ((int)Osc->Phase) % 512;
+    Osc->Phase += Step * Freq;
+    const int Index = ((int)Osc->Phase * 512) % 512;
     return Wavetable[Index];
 }
 
 int TickUGen(uint32_t NumFrames, uint32_t SampleRate, float* OutL, float* OutR) {
-    if (!Initialized) Initialize();
-    // printf("Hi\n");
+    Initialize();
 
-    const float Freq1 = 440;
     for (int N = 0; N < NumFrames; N++) {
-        const float Out = TickOsc(&Osc1, SampleRate, 440, SinWave);
+
+        const float Freq1 = Osc(&Osc3, SampleRate, 2,     SinWave) * 440 + 440;
+        const float Freq  = Osc(&Osc2, SampleRate, Freq1, SinWave) * 440 + 440;
+        const float Out   = Osc(&Osc1, SampleRate, Freq,  SinWave);
+
         *OutL++ = Out;
         *OutR++ = Out;
     }

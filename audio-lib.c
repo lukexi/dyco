@@ -1,5 +1,6 @@
 #include "audio-lib.h"
 #include <stdlib.h>
+#include "audio2-interface.h"
 
 float TransposeRatio(float Semitones) {
     return pow(2, Semitones/12);
@@ -29,4 +30,21 @@ float Clamp(float x, float lowerlimit, float upperlimit) {
 
 float Lerp(float From, float To, float X) {
     return From + ((To - From) * Clamp(X, 0, 1));
+}
+
+void InitWavetables() {
+    for (int I = 0; I < 512; I++) {
+        float PhaseR = (float)I / (float)512 * TAU;
+        SinWave[I] = sin(PhaseR);
+
+        const int NumPartials = 30;
+
+        for (int K = 1; K < NumPartials; K++) SawWave[I] += pow(-1, K) * sin(K * PhaseR) / (float)K;
+        SawWave[I] *= 2/M_PI;
+
+        for (int K = 1; K < NumPartials; K++) SquWave[I] += sin(PhaseR*(2*K-1)) / (float)(2*K-1);
+        SquWave[I] *= 4/M_PI;
+
+        for (int K = 0; K < NumPartials; K++) TriWave[I] += pow(-1, K) * pow(2*K+1, -2) * sin(PhaseR*(2*K+1));
+    }
 }
