@@ -6,6 +6,7 @@
 #include <stdio.h>
 
 #include "audio-lib.c"
+#include "audio-filter.c"
 
 typedef struct {
     double Phase;
@@ -14,6 +15,7 @@ typedef struct {
     float NewFreq;
     float Slew;
     float SlewRate;
+    filter_rlop Filter;
 } oscillator;
 
 void SetFreq(oscillator* Oscillator, float Freq, float SlewRate) {
@@ -45,8 +47,12 @@ float TickOscillator(oscillator* Oscillator, int SampleRate, float* Wavetable) {
     // No interpolation
     // const int Index = ((int)Oscillator->Phase) % 512;
     // const float Amplitude = Wavetable[Index];
+    // SUBOSC
+    const float LFO = Wavetable[((int)(Oscillator->Phase/1600)) % 512];
+    const float LFOAmp = (LFO*0.5+0.5)*3000+100;
+    float Amplitude2 = TickFilter(&Oscillator->Filter, LFOAmp, 0.8, SampleRate, Amplitude);
 
-    return Amplitude;
+    return Amplitude2;
 }
 
 void InitTap(audio_block* Tap, int NumFrames) {
@@ -116,16 +122,16 @@ int TickUGen(jack_nframes_t NumFrames, void *Arg) {
 
         GlobalPhase++;
 
-        int SeqDur = (SampleRate/8);
+        int SeqDur = (SampleRate);
         if ((GlobalPhase%SeqDur) == 0) {
 
             float Freq1 = MIDIToFreq(RANDOM_ITEM(MajorScale) + RAND_INT(0,3) * 12 + 50);
             float Freq2 = MIDIToFreq(RANDOM_ITEM(MajorScale) + RAND_INT(0,3) * 12 + 50);
             float Freq3 = MIDIToFreq(RANDOM_ITEM(MajorScale) + RAND_INT(0,3) * 12 + 50);
 
-            SetFreq(&Osc[0], Freq1, 30);
-            SetFreq(&Osc[1], Freq2, 30);
-            SetFreq(&Osc[2], Freq3, 30);
+            SetFreq(&Osc[0], Freq1, 4);
+            SetFreq(&Osc[1], Freq2, 4);
+            SetFreq(&Osc[2], Freq3, 4);
         }
     }
 

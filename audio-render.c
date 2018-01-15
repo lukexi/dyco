@@ -10,21 +10,11 @@
 
 // Returns trigger index or -1 if not found yet.
 int FindOscilloscopeTrigger(float* Samples, int Length) {
-    float Level; // Value to trigger at (on rising slope)
-    int   NextScanIndex;
-    float LastVal;
-
-    Level         = 0;
-    NextScanIndex = 0;
-    LastVal       = 1;
-
+    const float Level = 0; // Value to trigger at (on rising slope)
     for (int I = 0; I < Length; I++) {
-        float Val = Samples[I];
-        if (LastVal < Level && Val >= Level)  {
-            return NextScanIndex;
-        }
-        LastVal = Val;
-        NextScanIndex++;
+        const float V1 = Samples[I];
+        const float V0 = I > 0 ? Samples[I-1] : 1;
+        if (V0 < Level && V1 >= Level) return I;
     }
     return 0;
 }
@@ -39,6 +29,7 @@ typedef struct {
     int    WriteIndex;
     GLuint TexBuf;
     GLuint Tex;
+    GLenum TexUnit;
 } scope;
 
 
@@ -81,9 +72,7 @@ void LoadShader(r_state* State) {
 }
 
 
-void TickAudioTap(ringbuffer* AudioTap, int ID, r_state* State) {
-    scope* Scopes = State->Scopes;
-    scope* Scope = &Scopes[ID];
+void TickOscilloscope(ringbuffer* AudioTap, scope* Scope) {
 
     while (GetRingBufferReadAvailable(AudioTap) >= 1) {
         audio_block Block;
@@ -120,7 +109,7 @@ void TickAudioTap(ringbuffer* AudioTap, int ID, r_state* State) {
         free(Block.Freqs);
     }
 
-    glActiveTexture(GL_TEXTURE0 + ID);
+    glActiveTexture(Scope->TexUnit);
     glBindTexture(GL_TEXTURE_BUFFER, Scope->Tex);
 }
 
@@ -133,6 +122,8 @@ r_state* TickRender(SDL_Window* Window, audio_state* AudioState, r_state* State)
 
         scope* Scopes = State->Scopes;
         for (int I = 0; I < 3; I++) {
+
+            Scopes[I].TexUnit = GL_TEXTURE0 + I;
 
             glGenBuffers(1, &Scopes[I].TexBuf);
             glGenTextures(1, &Scopes[I].Tex);
@@ -150,9 +141,9 @@ r_state* TickRender(SDL_Window* Window, audio_state* AudioState, r_state* State)
     glClearColor(0, 0, 0, 1);
     glClear(GL_COLOR_BUFFER_BIT);
 
-    TickAudioTap(&AudioState->AudioTapRed, 0, State);
-    TickAudioTap(&AudioState->AudioTapGrn, 1, State);
-    TickAudioTap(&AudioState->AudioTapBlu, 2, State);
+    TickOscilloscope(&AudioState->AudioTapRed, &State->Scopes[0]);
+    TickOscilloscope(&AudioState->AudioTapGrn, &State->Scopes[1]);
+    TickOscilloscope(&AudioState->AudioTapBlu, &State->Scopes[2]);
 
     glBindVertexArray(State->QuadVAO);
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
