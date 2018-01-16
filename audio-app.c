@@ -13,11 +13,18 @@ int AudioCallback(jack_nframes_t NumFrames, void *UserData) {
     audio_state *AudioState = (audio_state*)UserData;
     if (!AudioState) return 0;
 
-    if (!AudioState->TickUGen || ReloadLibrary(AudioState->UGen)) {
+    if (ReloadLibrary(AudioState->UGen) || !AudioState->TickUGen) {
         AudioState->TickUGen = GetLibrarySymbol(AudioState->UGen, "TickUGen");
     }
+    const jack_nframes_t SampleRate = jack_get_sample_rate(AudioState->Jack->Client);
 
-    if (AudioState->TickUGen) AudioState->TickUGen(NumFrames, UserData);
+    float* OutLeft  = (float*)jack_port_get_buffer(AudioState->Jack->OutL, NumFrames);
+    float* OutRight = (float*)jack_port_get_buffer(AudioState->Jack->OutR, NumFrames);
+    memset(OutLeft,  0, sizeof(float) * NumFrames);
+    memset(OutRight, 0, sizeof(float) * NumFrames);
+
+    if (AudioState->TickUGen) AudioState->TickUGen(AudioState,
+        NumFrames, SampleRate, OutLeft, OutRight);
     return 0;
 }
 

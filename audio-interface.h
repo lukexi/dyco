@@ -15,7 +15,7 @@ typedef struct {
 typedef struct {
     jack* Jack;
     library* UGen;
-    int (*TickUGen)(jack_nframes_t NumFrames, void *Arg);
+    int (*TickUGen)(void* AudioState, uint32_t NumFrames, uint32_t SampleRate, float* OutL, float* OutR);
     ringbuffer AudioTapRed;
     ringbuffer AudioTapGrn;
     ringbuffer AudioTapBlu;

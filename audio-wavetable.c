@@ -8,6 +8,19 @@
 #include "audio-lib.c"
 #include "audio-filter.c"
 
+// TRIGGER
+typedef struct {
+    float Phase;
+} trigger;
+
+float TickTrigger(trigger* Trigger, int SampleRate, float Freq) {
+    const float T = 1/(float)SampleRate;
+    const float NewPhase = Trigger->Phase + T * Freq;
+    const float Output = (int)Trigger->Phase == (int)NewPhase ? 0 : 1;
+    Trigger->Phase = NewPhase;
+    return Output;
+}
+
 // SLEW GENERATOR
 typedef struct {
     float OldValue;
@@ -57,6 +70,7 @@ float TickOscillator(oscillator* Oscillator, int SampleRate, float* Wavetable, f
 
 // VOICE
 typedef struct {
+    trigger Trigger;
     slew_gen SlewGen;
     oscillator Osc1;
     oscillator LFO1;
@@ -64,6 +78,11 @@ typedef struct {
 } voice;
 
 float TickVoice(voice* Voice, int SampleRate, float* Wavetable) {
+    if (TickTrigger(&Voice->Trigger, SampleRate, 2) > 0) {
+        SetSlewGen(&Voice->SlewGen,
+            MIDIToFreq(RANDOM_ITEM(MajorScale) + RAND_INT(0,3) * 12 + 50));
+    }
+
     const float SlewRate = 4;
     const float Slew = TickSlewGen(&Voice->SlewGen, SampleRate, SlewRate);
     const float Osc1 = TickOscillator(&Voice->Osc1, SampleRate, Wavetable, Slew);
@@ -81,8 +100,12 @@ void InitTap(audio_block* Tap, int NumFrames) {
     Tap->Length = NumFrames;
 }
 
-int TickUGen(jack_nframes_t NumFrames, void *Arg) {
-    static long GlobalPhase = 0;
+int TickUGen(audio_state *AudioState,
+    uint32_t NumFrames,
+    uint32_t SampleRate,
+    float* OutL,
+    float* OutR)
+{
     static voice Voices[3];
     static oscillator LFO;
 
@@ -98,27 +121,17 @@ int TickUGen(jack_nframes_t NumFrames, void *Arg) {
         Initialized = true;
     }
 
-    audio_state *AudioState = (audio_state*)Arg;
-    float* OutLeft  = (float*)jack_port_get_buffer(AudioState->Jack->OutL, NumFrames);
-    float* OutRight = (float*)jack_port_get_buffer(AudioState->Jack->OutR, NumFrames);
-
-    const jack_nframes_t SampleRate = jack_get_sample_rate(AudioState->Jack->Client);
-
-
     audio_block TapRed;
     InitTap(&TapRed, NumFrames);
     float* TapRedIn     = TapRed.Samples;
-    float* TapRedFreqIn = TapRed.Freqs;
 
     audio_block TapGrn;
     InitTap(&TapGrn, NumFrames);
     float* TapGrnIn     = TapGrn.Samples;
-    float* TapGrnFreqIn = TapGrn.Freqs;
 
     audio_block TapBlu;
     InitTap(&TapBlu, NumFrames);
     float* TapBluIn     = TapBlu.Samples;
-    float* TapBluFreqIn = TapBlu.Freqs;
 
     for (int SampleIndex = 0; SampleIndex < NumFrames; SampleIndex++) {
 
@@ -135,22 +148,8 @@ int TickUGen(jack_nframes_t NumFrames, void *Arg) {
         float OutputL = Wave1*Mix + Wave2*(1-Mix) + Wave3;
         float OutputR = Wave1*(1-Mix) + Wave2*Mix + Wave3;
 
-        *OutLeft++  = OutputL * 0.3;
-        *OutRight++ = OutputR * 0.3;
-
-        GlobalPhase++;
-
-        int SeqDur = (SampleRate);
-        if ((GlobalPhase%SeqDur) == 0) {
-
-            float Freq1 = MIDIToFreq(RANDOM_ITEM(MajorScale) + RAND_INT(0,3) * 12 + 50);
-            float Freq2 = MIDIToFreq(RANDOM_ITEM(MajorScale) + RAND_INT(0,3) * 12 + 50);
-            float Freq3 = MIDIToFreq(RANDOM_ITEM(MajorScale) + RAND_INT(0,3) * 12 + 50);
-
-            SetSlewGen(&Voices[0].SlewGen, Freq1);
-            SetSlewGen(&Voices[1].SlewGen, Freq2);
-            SetSlewGen(&Voices[2].SlewGen, Freq3);
-        }
+        *OutL++  = OutputL * 0.3;
+        *OutR++ = OutputR * 0.3;
     }
 
     WriteRingBuffer(&AudioState->AudioTapRed, &TapRed, 1);
