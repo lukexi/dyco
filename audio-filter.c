@@ -29,11 +29,12 @@ typedef struct {
 } filter_rlop;
 
 float TickFilter(
-     filter_rlop* Filter, float Freq, float Res,
-     float SampleRate, float In)
+     filter_rlop* Filter, int SampleRate,
+     float Freq, float Res,
+     float In)
 {
      if (Freq != Filter->Freq || Res != Filter->Res) {
-          float FX = cos(2*M_PI*Freq / SampleRate);
+          float FX = cos(2*M_PI*Freq / (float)SampleRate);
           float C = 2-2*FX;
           float R = (sqrtf(2)*sqrtf(-powf(FX-1, 3))+Res*(FX-1))/(Res*(FX-1));
 

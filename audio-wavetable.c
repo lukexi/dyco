@@ -8,33 +8,41 @@
 #include "audio-lib.c"
 #include "audio-filter.c"
 
+// SLEW GENERATOR
 typedef struct {
-    double Phase;
-    float Freq;
-    float OldFreq;
-    float NewFreq;
-    float Slew;
-    float SlewRate;
-    filter_rlop Filter;
-} oscillator;
+    float OldValue;
+    float NewValue;
+    float SlewPhase;
+} slew_gen;
 
-void SetFreq(oscillator* Oscillator, float Freq, float SlewRate) {
-    Oscillator->OldFreq = Oscillator->Freq;
-    Oscillator->NewFreq = Freq;
-    Oscillator->Slew = 0;
-    Oscillator->SlewRate = SlewRate;
-    if (SlewRate <= 0) Oscillator->Freq = Freq;
+void SetSlewGen(slew_gen* SlewGen, float Value) {
+    SlewGen->OldValue = Lerp(SlewGen->OldValue, SlewGen->NewValue, SlewGen->SlewPhase);
+    SlewGen->NewValue = Value;
+    SlewGen->SlewPhase = 0;
 }
 
-float TickOscillator(oscillator* Oscillator, int SampleRate, float* Wavetable) {
+float TickSlewGen(slew_gen* SlewGen, int SampleRate, float SlewRate) {
+    const float T = 1/(float)SampleRate;
+    SlewGen->SlewPhase += T * SlewRate;
+
+    if (SlewRate <= 0) return SlewGen->NewValue;
+    return Lerp(SlewGen->OldValue, SlewGen->NewValue, SlewGen->SlewPhase);
+}
+
+
+// OSCILLATOR
+typedef struct {
+    double Phase;
+} oscillator;
+
+float TickOscillator(oscillator* Oscillator, int SampleRate, float* Wavetable, float Freq) {
     const float T = 1/(float)SampleRate;
 
-    if (Oscillator->SlewRate > 0) {
-        Oscillator->Freq = Lerp(Oscillator->OldFreq, Oscillator->NewFreq, Oscillator->Slew);
-        Oscillator->Slew += T*Oscillator->SlewRate;
-    }
+    Oscillator->Phase += T * Freq * 512;
 
-    Oscillator->Phase += T * Oscillator->Freq * 512;
+    // No interpolation
+    // const int Index = ((int)Oscillator->Phase) % 512;
+    // const float Amplitude = Wavetable[Index];
 
     // Linear interpolation
     double Integral;
@@ -44,15 +52,27 @@ float TickOscillator(oscillator* Oscillator, int SampleRate, float* Wavetable) {
     const float Amplitude = ((1-Fractional) * Wavetable[Index0]) +
                             (Fractional * Wavetable[Index1]);
 
-    // No interpolation
-    // const int Index = ((int)Oscillator->Phase) % 512;
-    // const float Amplitude = Wavetable[Index];
-    // SUBOSC
-    const float LFO = Wavetable[((int)(Oscillator->Phase/1600)) % 512];
-    const float LFOAmp = (LFO*0.5+0.5)*3000+100;
-    float Amplitude2 = TickFilter(&Oscillator->Filter, LFOAmp, 0.8, SampleRate, Amplitude);
+    return Amplitude;
+}
 
-    return Amplitude2;
+// VOICE
+typedef struct {
+    slew_gen SlewGen;
+    oscillator Osc1;
+    oscillator LFO1;
+    filter_rlop Filter;
+} voice;
+
+float TickVoice(voice* Voice, int SampleRate, float* Wavetable) {
+    const float SlewRate = 4;
+    const float Slew = TickSlewGen(&Voice->SlewGen, SampleRate, SlewRate);
+    const float Osc1 = TickOscillator(&Voice->Osc1, SampleRate, Wavetable, Slew);
+    const float LFO1 = TickOscillator(&Voice->LFO1, SampleRate, SinWave, 1);
+    const float Out  = TickFilter(&Voice->Filter, SampleRate,
+        (LFO1*0.5+0.5)*3000+100, // Freq
+        0.8, // Res
+        Osc1); // In
+    return Out;
 }
 
 void InitTap(audio_block* Tap, int NumFrames) {
@@ -63,17 +83,17 @@ void InitTap(audio_block* Tap, int NumFrames) {
 
 int TickUGen(jack_nframes_t NumFrames, void *Arg) {
     static long GlobalPhase = 0;
-    static oscillator Osc[3];
+    static voice Voices[3];
     static oscillator LFO;
-    static bool Initialized = false;
 
+    static bool Initialized = false;
     if (!Initialized) {
         InitWavetables();
         float BaseFreq = MIDIToFreq(60);
 
-        SetFreq(&Osc[0], BaseFreq, 0);
-        SetFreq(&Osc[1], BaseFreq, 0);
-        SetFreq(&Osc[2], BaseFreq, 0);
+        SetSlewGen(&Voices[0].SlewGen, BaseFreq);
+        SetSlewGen(&Voices[1].SlewGen, BaseFreq);
+        SetSlewGen(&Voices[2].SlewGen, BaseFreq);
 
         Initialized = true;
     }
@@ -100,19 +120,17 @@ int TickUGen(jack_nframes_t NumFrames, void *Arg) {
     float* TapBluIn     = TapBlu.Samples;
     float* TapBluFreqIn = TapBlu.Freqs;
 
-
-    SetFreq(&LFO, 0.1, 0);
     for (int SampleIndex = 0; SampleIndex < NumFrames; SampleIndex++) {
 
-        float Mix = TickOscillator(&LFO, SampleRate, SinWave) * 0.5 + 0.5;
+        float Mix = TickOscillator(&LFO, SampleRate, SinWave, 0.1) * 0.5 + 0.5;
 
-        float Wave1 = TickOscillator(&Osc[0], SampleRate, SinWave);
-        float Wave2 = TickOscillator(&Osc[1], SampleRate, SawWave);
-        float Wave3 = TickOscillator(&Osc[2], SampleRate, SquWave);
+        float Wave1 = TickVoice(&Voices[0], SampleRate, SinWave);
+        float Wave2 = TickVoice(&Voices[1], SampleRate, SawWave);
+        float Wave3 = TickVoice(&Voices[2], SampleRate, SquWave);
 
-        *TapRedIn++ = Wave1; *TapRedFreqIn++ = Osc[0].Freq;
-        *TapGrnIn++ = Wave2; *TapGrnFreqIn++ = Osc[1].Freq;
-        *TapBluIn++ = Wave3; *TapBluFreqIn++ = Osc[2].Freq;
+        *TapRedIn++ = Wave1;
+        *TapGrnIn++ = Wave2;
+        *TapBluIn++ = Wave3;
 
         float OutputL = Wave1*Mix + Wave2*(1-Mix) + Wave3;
         float OutputR = Wave1*(1-Mix) + Wave2*Mix + Wave3;
@@ -129,9 +147,9 @@ int TickUGen(jack_nframes_t NumFrames, void *Arg) {
             float Freq2 = MIDIToFreq(RANDOM_ITEM(MajorScale) + RAND_INT(0,3) * 12 + 50);
             float Freq3 = MIDIToFreq(RANDOM_ITEM(MajorScale) + RAND_INT(0,3) * 12 + 50);
 
-            SetFreq(&Osc[0], Freq1, 4);
-            SetFreq(&Osc[1], Freq2, 4);
-            SetFreq(&Osc[2], Freq3, 4);
+            SetSlewGen(&Voices[0].SlewGen, Freq1);
+            SetSlewGen(&Voices[1].SlewGen, Freq2);
+            SetSlewGen(&Voices[2].SlewGen, Freq3);
         }
     }
 
