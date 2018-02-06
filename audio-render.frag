@@ -13,9 +13,13 @@ float Plot(vec2 UV, float Y, float Thickness) {
 }
 
 float ReadTap(samplerBuffer Samples) {
-    int ReadIndex = int(vUV.x * BufferSize);
-    return texelFetch(Samples, ReadIndex).r
-        * 0.5 + 0.5;
+    float ReadPoint = vUV.x * BufferSize;
+    float Offset = fract(ReadPoint);
+    int ReadIndex0 = int(vUV.x * BufferSize);
+    int ReadIndex1 = ReadIndex0 + 1;
+
+    return texelFetch(Samples, ReadIndex0).r * (1-Offset)
+         + texelFetch(Samples, ReadIndex1).r * Offset;
 }
 
 void main() {
@@ -32,11 +36,11 @@ void main() {
     // B+=RedWave<0?-RedWave:0;
 
     // Unipolar
-    R+=RedWave*0.5+0.5;
-    G+=GrnWave*0.5+0.5;
-    B+=BluWave*0.5+0.5;
-    R += Plot(vUV, RedWave * 0.5 + 0.25, 0.01);
-    G += Plot(vUV, GrnWave * 0.5 + 0.25, 0.01);
-    B += Plot(vUV, BluWave * 0.5 + 0.25, 0.01);
+    R += abs(RedWave);
+    G += abs(GrnWave);
+    B += abs(BluWave);
+    R += Plot(vUV, RedWave*0.5+0.5, 0.01);
+    G += Plot(vUV, GrnWave*0.5+0.5, 0.01);
+    B += Plot(vUV, BluWave*0.5+0.5, 0.01);
     fragColor = vec4(R, G, B, 1);
 }

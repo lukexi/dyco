@@ -26,26 +26,26 @@ typedef struct {
      float R;
      float Pos;
      float Speed;
-} filter_rlop;
+} lowpass_filter;
 
-float TickFilter(
-     filter_rlop* Filter, int SampleRate,
+float Lowpass(
+     lowpass_filter* State, int SampleRate,
      float Freq, float Res,
      float In)
 {
-     if (Freq != Filter->Freq || Res != Filter->Res) {
+     if (Freq != State->Freq || Res != State->Res) {
           float FX = cos(2*M_PI*Freq / (float)SampleRate);
           float C = 2-2*FX;
           float R = (sqrtf(2)*sqrtf(-powf(FX-1, 3))+Res*(FX-1))/(Res*(FX-1));
 
-          Filter->Freq = Freq;
-          Filter->Res = Res;
-          Filter->FX = FX;
-          Filter->C = C;
-          Filter->R = R;
+          State->Freq = Freq;
+          State->Res = Res;
+          State->FX = FX;
+          State->C = C;
+          State->R = R;
      }
-     Filter->Speed += (In - Filter->Pos) * Filter->C;
-     Filter->Pos += Filter->Speed;
-     Filter->Speed *= Filter->R;
-     return Filter->Pos;
+     State->Speed += (In - State->Pos) * State->C;
+     State->Pos += State->Speed;
+     State->Speed *= State->R;
+     return State->Pos;
 }

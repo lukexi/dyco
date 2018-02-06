@@ -56,4 +56,6 @@ void TickStage(SDL_Window* Window, pipeline_state* PipelineState) {
 
     glBindVertexArray(PipelineState->QuadVAO);
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+
+    SwapWindowQ(Window);
 }

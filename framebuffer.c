@@ -9,8 +9,8 @@ GLuint CreateFramebufferTexture(GLenum Storage, GLsizei SizeX, GLsizei SizeY) {
     glBindTexture   (GL_TEXTURE_2D, TexID);
     glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
-    glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+    glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
     glTexStorage2D  (GL_TEXTURE_2D, 1, Storage, SizeX, SizeY);
     glBindTexture   (GL_TEXTURE_2D, 0);
 
@@ -69,3 +69,17 @@ void CreateFramebuffer(GLenum Storage,
 }
 
 
+
+
+void DeleteFramebuffer(framebuffer Framebuffer) {
+    glDeleteTextures(1, &Framebuffer.FramebufferTex);
+    glDeleteRenderbuffers(1, &Framebuffer.FramebufferRB);
+    glDeleteFramebuffers(1, &Framebuffer.Framebuffer);
+}
+
+void InitFramebuffer(GLsizei Width, GLsizei Height, framebuffer* Framebuffer) {
+    CreateFramebuffer(GL_RGBA8, Width, Height,
+        &Framebuffer->FramebufferTex,
+        &Framebuffer->Framebuffer,
+        &Framebuffer->FramebufferRB);
+}

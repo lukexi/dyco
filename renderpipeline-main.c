@@ -4,8 +4,8 @@
 #include "gl.h"
 #include "shader.h"
 #include "quad.h"
-#include "dynamic.h"
 #include "framebuffer.h"
+#include "dynamic.h"
 #include "renderpipeline-interface.h"
 
 // Stage definition

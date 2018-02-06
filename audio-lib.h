@@ -4,6 +4,7 @@
 #include <math.h>
 
 float MajorScale[] = {0,2,4,5,7,9,11};
+float MinorScale[] = {0,2,3,5,7,8,11};
 #define RAND_FLOAT ((float)rand() / (float)RAND_MAX)
 #define RAND_INT(Lo, Hi) (Lo + (rand() % (Hi - Lo)))
 #define RAND_RANGE(Lo, Hi) (Lo+RAND_FLOAT*(Hi-Lo))
