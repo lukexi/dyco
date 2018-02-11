@@ -12,8 +12,8 @@ int AudioCallback(jack_nframes_t NumFrames, void *UserData) {
     if (!AudioState) return 0;
 
     if (AudioState->UGen->LibraryNeedsReload || !AudioState->TickUGen) {
-        void (*Cleanup)(void) = GetLibrarySymbol(AudioState->UGen, "Cleanup");
-        if (Cleanup) Cleanup();
+        void (*Cleanup)(audio_state*) = GetLibrarySymbol(AudioState->UGen, "Cleanup");
+        if (Cleanup) Cleanup(AudioState);
         ReloadLibrary(AudioState->UGen);
         AudioState->TickUGen = GetLibrarySymbol(AudioState->UGen, "TickUGen");
     }

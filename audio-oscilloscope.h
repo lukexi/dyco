@@ -2,7 +2,7 @@
 #define AUDIO_OSCILLOSCOPE_H
 
 #include "gl.h"
-
+#include "ringbuffer.h"
 
 #define BUFFER_SIZE 512
 

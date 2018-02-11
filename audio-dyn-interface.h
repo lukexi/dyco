@@ -2,11 +2,12 @@
 #define AUDIO_INTERFACE_H
 
 #include "audio-jack.h"
+#include "audio-oscilloscope.h"
 #include "ringbuffer.h"
 #include "dynamic.h"
 
 typedef struct {
-    float* Samples;
+    float Samples[512];
     size_t Length;
 } audio_block;
 
@@ -29,6 +30,8 @@ struct audio_unit {
     float Output[512];
     long TickID;
     void* State;
+    scope Scope;
+    ringbuffer ScopeBuffer;
 };
 
 typedef struct {
@@ -40,6 +43,7 @@ typedef struct {
         uint32_t SampleRate,
         float* OutL, float* OutR
         );
+    audio_unit* OutputUnit;
 } audio_state;
 
 float GetInput(audio_input Input, uint32_t Frame);

@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include "gl.h"
-#include "audio-interface.h"
+#include "audio-dyn-interface.h"
 #include "shader.h"
 #include "quad.h"
 #include "dynamic.h"
@@ -42,6 +42,17 @@ void TickRender(SDL_Window* Window, audio_state* AudioState) {
     }
     LoadShader(&State);
 
+    if (AudioState->OutputUnit) {
+        if (AudioState->OutputUnit->Scope.Tex == 0) {
+            printf("Initializing scope\n");
+            InitScope(&AudioState->OutputUnit->Scope);
+        }
+        glUniform1i(glGetUniformLocation(State.Shader, "BufferSize"), BUFFER_SIZE);
+        TickOscilloscope(&AudioState->OutputUnit->ScopeBuffer,
+            &AudioState->OutputUnit->Scope,
+            GL_TEXTURE0+0);
+    }
+
     glClearColor(0, 0.1, 0.1, 1);
     glClear(GL_COLOR_BUFFER_BIT);
 
@@ -49,7 +60,6 @@ void TickRender(SDL_Window* Window, audio_state* AudioState) {
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
     SwapWindowQ(Window);
-
 }
 
 

@@ -1,9 +1,8 @@
 #include "audio-dyn-interface.h"
 #include "audio-lib.c"
 #include <stdio.h>
+#include <assert.h>
 #include "utils.h"
-
-audio_unit* OutputUnit;
 
 audio_unit* CreateUnit(char* Name, char* FileName);
 
@@ -29,33 +28,34 @@ void FreeUnit(audio_unit* Unit) {
     free(Unit);
 }
 
-void Cleanup() {
-    FreeUnit(OutputUnit);
+void Cleanup(audio_state* AudioState) {
+    printf("Cleaning up audio graph...\n");
+    FreeUnit(AudioState->OutputUnit);
 }
 
-void Initialize() {
+void Initialize(audio_state* AudioState) {
     static bool Initialized = false;
     if (Initialized) return;
     Initialized = true;
 
     audio_unit* Sin3 = CreateUnit("sin3", "audio-dyn-ugen-sin.c");
-    Sin3->Inputs[0].Constant = 7;
+    Sin3->Inputs[0].Constant = 10;
 
     audio_unit* MulAdd1 = CreateUnit("muladd1", "audio-dyn-ugen-muladd.c");
 
-    MulAdd1->Inputs[0].Unit = Sin3;
-    MulAdd1->Inputs[1].Constant = 220;
-    MulAdd1->Inputs[2].Constant = 440;
+    MulAdd1->Inputs[0].Unit = Sin3;    // input
+    MulAdd1->Inputs[1].Constant = 440; // mul
+    MulAdd1->Inputs[2].Constant = 880; // add
 
     audio_unit* Sin1 = CreateUnit("sin1", "audio-dyn-ugen-sin.c");
     audio_unit* Sin2 = CreateUnit("sin2", "audio-dyn-ugen-sin.c");
 
-    Sin1->Inputs[0].Unit = MulAdd1;
-    Sin2->Inputs[0].Constant = 550;
+    Sin1->Inputs[0].Unit = MulAdd1; // Freq
+    Sin2->Inputs[0].Constant = 770; // Freq
 
-    OutputUnit = CreateUnit("mix1", "audio-dyn-ugen-mix.c");
-    OutputUnit->Inputs[0].Unit = Sin1;
-    OutputUnit->Inputs[1].Unit = Sin2;
+    AudioState->OutputUnit = CreateUnit("mix1", "audio-dyn-ugen-mix.c");
+    AudioState->OutputUnit->Inputs[0].Unit = Sin1;
+    AudioState->OutputUnit->Inputs[1].Unit = Sin2;
 }
 
 float GetInput(audio_input Input, uint32_t Frame) {
@@ -70,6 +70,8 @@ audio_unit* CreateUnit(char* Name, char* FileName) {
     Unit->Library      = CreateLibrary(Name, FileName);
     Unit->TickFunction = GetLibrarySymbol(Unit->Library, "TickUGen");
     Unit->TickID       = -1;
+
+    CreateRingBuffer(&Unit->ScopeBuffer, sizeof(audio_block), 64);
 
     return Unit;
 }
@@ -90,6 +92,8 @@ void TickUnit(audio_unit* Unit, uint32_t NumFrames, uint32_t SampleRate, long Ti
     if (Unit->TickID == TickID) return;
     Unit->TickID = TickID;
 
+    assert(NumFrames <= ARRAY_LEN(Unit->Output));
+
     UpdateUnit(Unit);
 
     for (int I = 0; I < ARRAY_LEN(Unit->Inputs); I++) {
@@ -98,6 +102,14 @@ void TickUnit(audio_unit* Unit, uint32_t NumFrames, uint32_t SampleRate, long Ti
 
 
     if (Unit->TickFunction) Unit->TickFunction(Unit, NumFrames, SampleRate);
+
+    audio_block Block;
+    Block.Length = NumFrames;
+    assert(NumFrames <= ARRAY_LEN(Block.Samples));
+    for (int I = 0; I < NumFrames; I++) {
+        Block.Samples[I] = Unit->Output[I];
+    }
+    WriteRingBuffer(&Unit->ScopeBuffer, &Block, 1);
 }
 
 int TickUGen(audio_state *AudioState,
@@ -106,14 +118,14 @@ int TickUGen(audio_state *AudioState,
     float* OutL,
     float* OutR)
 {
-    Initialize();
+    Initialize(AudioState);
 
     static long TickID = 0;
-    TickUnit(OutputUnit, NumFrames, SampleRate, TickID++);
+    TickUnit(AudioState->OutputUnit, NumFrames, SampleRate, TickID++);
 
 
     for (int SampleIndex = 0; SampleIndex < NumFrames; SampleIndex++) {
-        const float Signal = OutputUnit->Output[SampleIndex];
+        const float Signal = AudioState->OutputUnit->Output[SampleIndex];
         *OutL++ = Signal;
         *OutR++ = Signal;
     }

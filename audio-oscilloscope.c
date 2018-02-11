@@ -56,9 +56,6 @@ void TickOscilloscope(ringbuffer* AudioTap, scope* Scope, GLenum TexUnit) {
         for (int I = 0; I < Block.Length; I++) {
             Scope->LocalBuf[Scope->WriteIndex++] = Block.Samples[I];
         }
-
-        free(Block.Samples);
-        free(Block.Freqs);
     }
 
     glActiveTexture(TexUnit);

@@ -55,7 +55,6 @@ float Voice(voice* State, int SR, float TrigRate) {
 
 void InitTap(audio_block* Tap, int NumFrames) {
     Tap->Samples = malloc(sizeof(float) * NumFrames);
-    Tap->Freqs   = malloc(sizeof(float) * NumFrames);
     Tap->Length = NumFrames;
 }
 
@@ -74,16 +73,16 @@ int TickUGen(audio_state *AudioState,
     }
 
     audio_block TapRed;
-    InitTap(&TapRed, NumFrames);
-    float* TapRedIn     = TapRed.Samples;
+    TapRed.Length   = NumFrames;
+    float* TapRedIn = TapRed.Samples;
 
     audio_block TapGrn;
-    InitTap(&TapGrn, NumFrames);
-    float* TapGrnIn     = TapGrn.Samples;
+    TapGrn.Length   = NumFrames;
+    float* TapGrnIn = TapGrn.Samples;
 
     audio_block TapBlu;
-    InitTap(&TapBlu, NumFrames);
-    float* TapBluIn     = TapBlu.Samples;
+    TapBlu.Length   = NumFrames;
+    float* TapBluIn = TapBlu.Samples;
 
     static voice Voices[3];
 
