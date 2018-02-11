@@ -7,7 +7,7 @@ int main(int argc, char const *argv[])
 
     library* Reaction = CreateLibrary(
         "reaction-main",
-        "reaction-main.c", NULL, NULL);
+        "reaction-main.c");
     void (*TickReaction)(SDL_Window* Window);
     void (*Cleanup)(void);
 

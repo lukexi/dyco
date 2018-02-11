@@ -5,21 +5,19 @@
 
 int (*Foo) (void);
 
-void FooLoader(library* Library, void* UserData) {
-    Foo = GetLibrarySymbol(Library, "Foo");
-    if (Foo == NULL) {
-        printf("Couldn't find symbol 'Foo' :(\n");
-    }
-}
-
 int main() {
 
-    library* TestLib = CreateLibrary("file-testfile", "file-testfile.c", FooLoader, NULL);
+    library* TestLib = CreateLibrary("file-testfile", "file-testfile.c");
 
     int I = 1000;
     while (I--) {
         usleep(500000);
-        UpdateLibraryFile(TestLib);
+        if (UpdateLibraryFile(TestLib)) {
+            Foo = GetLibrarySymbol(TestLib, "Foo");
+            if (Foo == NULL) {
+                printf("Couldn't find symbol 'Foo' :(\n");
+            }
+        }
         if (Foo) Foo();
     }
 

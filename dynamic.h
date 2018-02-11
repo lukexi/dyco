@@ -8,12 +8,11 @@
 
 typedef struct library library;
 
-typedef void (*loader_func)(library* Library, void* UserData);
-
 struct library {
     void*  LibHandle;
     time_t LastModTime;
     char*  Name;
+    char   Path[512]; // where the .so file is stored (placed in /tmp)
     char*  Source;
     char   CompilationLog[16384];
     size_t CompilationLogLength;
@@ -24,14 +23,11 @@ struct library {
     char*  Dependencies[1024];
     time_t DependenciesModTimes[1024];
     size_t DependenciesLength;
-
-    loader_func LoaderFunc;
-    void* LoaderUserData;
 };
 
 // Creates a library from a source file or source code string.
 // Provide an optional callback to call when the library is updated
-library* CreateLibrary(char* Name, char* Source, loader_func LoaderFunc, void* LoaderUserData);
+library* CreateLibrary(char* Name, char* Source);
 
 // Get a symbol from the library that will be
 // valid until the next time the library is reloaded.

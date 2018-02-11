@@ -1,6 +1,5 @@
 #include "audio-lib.h"
 #include <stdlib.h>
-#include "audio2-interface.h"
 
 float TransposeRatio(float Semitones) {
     return pow(2, Semitones/12);

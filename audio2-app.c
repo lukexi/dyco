@@ -25,9 +25,7 @@ int AudioCallback(jack_nframes_t NumFrames, jack* Jack) {
 
 int main(int argc, char const *argv[]) {
 
-    UGen = CreateLibrary(
-        "audio2-oscs",
-        "audio2-oscs.c", NULL, NULL);
+    UGen = CreateLibrary("audio2-oscs", "audio2-oscs.c");
     TickUGen = GetLibrarySymbol(UGen, "TickUGen");
 
     jack* Jack = StartJack("Modular Wavetable", (JackProcessCallback)AudioCallback, NULL);

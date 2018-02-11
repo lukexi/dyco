@@ -21,7 +21,7 @@ void GetStageFunctions(render_stage* Stage) {
 }
 
 void CreateStage(render_stage* Stage, char* Name, char* Source) {
-    Stage->Library = CreateLibrary(Name, Source, NULL, NULL);
+    Stage->Library = CreateLibrary(Name, Source);
     GetStageFunctions(Stage);
 }
 

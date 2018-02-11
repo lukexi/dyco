@@ -7,7 +7,7 @@ int main(int argc, char const *argv[])
 
     library* RenderPipeline = CreateLibrary(
         "renderpipeline-main",
-        "renderpipeline-main.c", NULL, NULL);
+        "renderpipeline-main.c");
     void (*TickRenderPipeline)(SDL_Window* Window);
     void (*Cleanup)(void);
 

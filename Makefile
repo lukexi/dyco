@@ -15,6 +15,9 @@ GL_OBJECTS=gl.o shader.o quad.o framebuffer.o texture.o
 GL_FLAGS=`pkg-config --libs SDL2 GLEW` -framework OpenGL
 AUDIO_FLAGS=`pkg-config --libs jack`
 
+audio-dyn.app: audio-dyn-app.c $(OBJECTS) $(GL_OBJECTS) audio-jack.o
+	clang -o $@ $^ $(GL_FLAGS) $(AUDIO_FLAGS)
+
 audio-fm.app: audio-fm-app.c $(OBJECTS) $(GL_OBJECTS) audio-jack.o
 	clang -o $@ $^ $(GL_FLAGS) $(AUDIO_FLAGS)
 

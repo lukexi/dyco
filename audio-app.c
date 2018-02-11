@@ -35,9 +35,7 @@ int main(int argc, char const *argv[]) {
     CreateRingBuffer(&AudioState->AudioTapGrn, sizeof(audio_block), 64);
     CreateRingBuffer(&AudioState->AudioTapBlu, sizeof(audio_block), 64);
 
-    AudioState->UGen = CreateLibrary(
-        "audio-wavetable",
-        "audio-wavetable.c", NULL, NULL);
+    AudioState->UGen = CreateLibrary("audio-wavetable", "audio-wavetable.c");
     AudioState->TickUGen = GetLibrarySymbol(AudioState->UGen, "TickUGen");
 
     AudioState->Jack = StartJack("Wavetable", AudioCallback, AudioState);
@@ -46,9 +44,7 @@ int main(int argc, char const *argv[]) {
         return -1;
     }
 
-    library* AudioRender = CreateLibrary(
-        "audio-render",
-        "audio-render.c", NULL, NULL);
+    library* AudioRender = CreateLibrary("audio-render", "audio-render.c");
 
     SDL_Window* Window = CreateWindow("Wavetable", 10,10, 1024,768);
 

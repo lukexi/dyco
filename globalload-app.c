@@ -6,8 +6,7 @@
 
 int main() {
 
-    library* TestLib = CreateLibrary("globalload-testfile", "globalload-testfile.c",
-        NULL, NULL);
+    library* TestLib = CreateLibrary("globalload-testfile", "globalload-testfile.c");
     LoadAll();
 
     int I = 1000;

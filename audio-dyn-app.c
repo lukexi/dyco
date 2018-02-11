@@ -4,8 +4,6 @@
 #include "gl.h"
 #include "audio-interface.h"
 #include "dynamic.h"
-#include "shader.h"
-#include "quad.h"
 #include "audio-jack.h"
 
 int AudioCallback(jack_nframes_t NumFrames, void *UserData) {
@@ -13,7 +11,10 @@ int AudioCallback(jack_nframes_t NumFrames, void *UserData) {
     audio_state *AudioState = (audio_state*)UserData;
     if (!AudioState) return 0;
 
-    if (ReloadLibrary(AudioState->UGen) || !AudioState->TickUGen) {
+    if (AudioState->UGen->LibraryNeedsReload || !AudioState->TickUGen) {
+        void (*Cleanup)(void) = GetLibrarySymbol(AudioState->UGen, "Cleanup");
+        if (Cleanup) Cleanup();
+        ReloadLibrary(AudioState->UGen);
         AudioState->TickUGen = GetLibrarySymbol(AudioState->UGen, "TickUGen");
     }
     const jack_nframes_t SampleRate = jack_get_sample_rate(AudioState->Jack->Client);
@@ -31,38 +32,31 @@ int AudioCallback(jack_nframes_t NumFrames, void *UserData) {
 int main(int argc, char const *argv[]) {
     audio_state* AudioState = calloc(1, sizeof(audio_state));
 
-    CreateRingBuffer(&AudioState->AudioTapRed, sizeof(audio_block), 64);
-    CreateRingBuffer(&AudioState->AudioTapGrn, sizeof(audio_block), 64);
-    CreateRingBuffer(&AudioState->AudioTapBlu, sizeof(audio_block), 64);
-
-    AudioState->UGen = CreateLibrary("audio-fm", "audio-fm.c");
+    AudioState->UGen = CreateLibrary("audio-dyn-audio", "audio-dyn-audio.c");
     AudioState->TickUGen = GetLibrarySymbol(AudioState->UGen, "TickUGen");
 
-    AudioState->Jack = StartJack("FM", AudioCallback, AudioState);
-    if (!AudioState->Jack) {
-        free(AudioState);
-        return -1;
-    }
+    AudioState->Jack = StartJack("Dynamic Audio", AudioCallback, AudioState);
+    if (!AudioState->Jack) { free(AudioState); return -1; }
 
-    library* AudioRender = CreateLibrary("audio-render", "audio-render.c");
+    library* Render = CreateLibrary("audio-dyn-render", "audio-dyn-render.c");
 
-    SDL_Window* Window = CreateWindow("FM", 10,10, 1024,768);
+    SDL_Window* Window = CreateWindow("Dynamic Audio", 10,10, 1024,768);
 
-    void* (*TickRender)(SDL_Window* Window, audio_state* AudioState, void* State);
-    TickRender = GetLibrarySymbol(AudioRender, "TickRender");
-    void* State = NULL;
+    void* (*TickRender)(SDL_Window* Window, audio_state* AudioState);
+    TickRender = GetLibrarySymbol(Render, "TickRender");
+
     while (true) {
         RecompileLibrary(AudioState->UGen);
-        RecompileLibrary(AudioRender);
+        RecompileLibrary(Render);
 
-        if (AudioRender->LibraryNeedsReload) {
-            void (*Cleanup)(void) = GetLibrarySymbol(AudioRender, "Cleanup");
+        if (Render->LibraryNeedsReload) {
+            void (*Cleanup)(void) = GetLibrarySymbol(Render, "Cleanup");
             if (Cleanup) Cleanup();
-            ReloadLibrary(AudioRender);
-            TickRender = GetLibrarySymbol(AudioRender, "TickRender");
+            ReloadLibrary(Render);
+            TickRender = GetLibrarySymbol(Render, "TickRender");
         }
 
-        if (TickRender) State = TickRender(Window, AudioState, State);
+        if (TickRender) TickRender(Window, AudioState);
     }
 
 

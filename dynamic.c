@@ -7,16 +7,17 @@
 
 library* CreateLibrary(
     char* Name,
-    char* Source,
-    loader_func LoaderFunc,
-    void* LoaderUserData)
+    char* Source)
 {
     library* Library = calloc(1, sizeof(library));
     Library->Name           = strdup(Name);
     Library->Source         = strdup(Source);
-    Library->LoaderFunc     = LoaderFunc;
-    Library->LoaderUserData = LoaderUserData;
     Library->SourceUpdated  = true;
+
+    snprintf(Library->Path, sizeof(Library->Path),
+        "/tmp/%s.so",
+        Library->Name);
+
     UpdateLibraryFile(Library);
     return Library;
 }
@@ -51,9 +52,6 @@ bool ReloadLibrary(library* Library) {
     Library->LibraryNeedsReload = false;
 
     // Close the old library
-    char LibraryFilename[256];
-    snprintf(LibraryFilename, sizeof(LibraryFilename), "%s.so", Library->Name);
-
     if (Library->LibHandle) {
         int Result = dlclose(Library->LibHandle);
         if (Result) printf("dlclose error: %i\n", Result);
@@ -64,15 +62,10 @@ bool ReloadLibrary(library* Library) {
     void* NewLibraryHandle = NULL;
 
     if (Library->LibraryCompiledSuccessfully) {
-        NewLibraryHandle = dlopen(LibraryFilename, RTLD_LAZY | RTLD_GLOBAL);
+        NewLibraryHandle = dlopen(Library->Path, RTLD_LAZY | RTLD_GLOBAL);
     }
 
     Library->LibHandle = NewLibraryHandle;
-
-    if (Library->LoaderFunc) {
-        Library->LoaderFunc(Library, Library->LoaderUserData);
-    }
-
 
     return true;
 }
@@ -188,11 +181,7 @@ bool RecompileLibrary(library* Library) {
     }
     Library->SourceUpdated = false;
 
-    // Append .so to the library name
-    char LibraryFilename[256];
-    snprintf(LibraryFilename,
-        sizeof(LibraryFilename),
-        "%s.so", Library->Name);
+
 
     // Clear the compilation log
     memset(Library->CompilationLog, 0, sizeof(Library->CompilationLog));
@@ -203,7 +192,7 @@ bool RecompileLibrary(library* Library) {
 
     // Compile the source into a library
     int ExitCode = CompileSource(
-        LibraryFilename, Library->Source,
+        Library->Path, Library->Source,
         Library->CompilationLog, sizeof(Library->CompilationLog),
         &Library->CompilationLogLength);
 
@@ -240,8 +229,7 @@ void* DynamicFunction(char* FunctionName, char* FunctionSource) {
         if (Result) printf("dlclose error: %i\n", Result);
     }
 
-    library* Library = CreateLibrary(FunctionName, FunctionSource,
-        NULL, NULL);
+    library* Library = CreateLibrary(FunctionName, FunctionSource);
 
     void* FunctionHandle = GetLibrarySymbol(Library, FunctionName);
 

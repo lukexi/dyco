@@ -6,9 +6,7 @@
 
 int main(int argc, char const *argv[]) {
 
-    library* CVRender = CreateLibrary(
-        "cv-render",
-        "cv-render.c", NULL, NULL);
+    library* CVRender = CreateLibrary("cv-render", "cv-render.c");
 
     SDL_Window* Window = CreateWindow("CV", 10,10, 1024,768);
 
