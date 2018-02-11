@@ -27,11 +27,33 @@ void LoadShader(r_state* State) {
     if (NewShaderModTime > State->ShaderModTime) {
         State->ShaderModTime = NewShaderModTime;
         glDeleteProgram(State->Shader);
-        State->Shader = CreateVertFragProgramFromPath("quad.vert", "audio-dyn-render.frag");
+        State->Shader = CreateVertFragProgramFromPath("audio-dyn-render.vert", "audio-dyn-render.frag");
         glUseProgram(State->Shader);
+
     }
 }
 
+void DrawUnit(r_state* State, audio_unit* Unit, float X, float Y) {
+    if (!Unit) return;
+    if (Unit->Scope.Tex == 0) {
+        InitScope(&Unit->Scope);
+    }
+    glUniform2f(glGetUniformLocation(State->Shader, "Scale"), 0.24,0.24);
+    glUniform2f(glGetUniformLocation(State->Shader, "Translate"), X,Y);
+    glUniform1i(glGetUniformLocation(State->Shader, "BufferSize"), BUFFER_SIZE);
+
+    TickOscilloscope(
+        &Unit->ScopeBuffer,
+        &Unit->Scope,
+        GL_TEXTURE0+0);
+
+    glBindVertexArray(State->QuadVAO);
+    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+
+    for (int I = 0; I < ARRAY_LEN(Unit->Inputs); I++) {
+        DrawUnit(State, Unit->Inputs[I].Unit, I*0.5, Y + 0.5);
+    }
+}
 
 void TickRender(SDL_Window* Window, audio_state* AudioState) {
 
@@ -42,22 +64,10 @@ void TickRender(SDL_Window* Window, audio_state* AudioState) {
     }
     LoadShader(&State);
 
-    if (AudioState->OutputUnit) {
-        if (AudioState->OutputUnit->Scope.Tex == 0) {
-            printf("Initializing scope\n");
-            InitScope(&AudioState->OutputUnit->Scope);
-        }
-        glUniform1i(glGetUniformLocation(State.Shader, "BufferSize"), BUFFER_SIZE);
-        TickOscilloscope(&AudioState->OutputUnit->ScopeBuffer,
-            &AudioState->OutputUnit->Scope,
-            GL_TEXTURE0+0);
-    }
-
-    glClearColor(0, 0.1, 0.1, 1);
+    glClearColor(0, 0.0, 0.1, 1);
     glClear(GL_COLOR_BUFFER_BIT);
 
-    glBindVertexArray(State.QuadVAO);
-    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+    DrawUnit(&State, AudioState->OutputUnit, 0, -0.75);
 
     SwapWindowQ(Window);
 }

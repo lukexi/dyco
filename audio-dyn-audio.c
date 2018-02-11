@@ -31,6 +31,7 @@ void FreeUnit(audio_unit* Unit) {
 void Cleanup(audio_state* AudioState) {
     printf("Cleaning up audio graph...\n");
     FreeUnit(AudioState->OutputUnit);
+    AudioState->OutputUnit = NULL;
 }
 
 void Initialize(audio_state* AudioState) {
@@ -39,19 +40,19 @@ void Initialize(audio_state* AudioState) {
     Initialized = true;
 
     audio_unit* Sin3 = CreateUnit("sin3", "audio-dyn-ugen-sin.c");
-    Sin3->Inputs[0].Constant = 10;
+    Sin3->Inputs[0].Constant = 500;
 
     audio_unit* MulAdd1 = CreateUnit("muladd1", "audio-dyn-ugen-muladd.c");
 
     MulAdd1->Inputs[0].Unit = Sin3;    // input
-    MulAdd1->Inputs[1].Constant = 440; // mul
-    MulAdd1->Inputs[2].Constant = 880; // add
+    MulAdd1->Inputs[1].Constant = 100; // mul
+    MulAdd1->Inputs[2].Constant = 440; // add
 
     audio_unit* Sin1 = CreateUnit("sin1", "audio-dyn-ugen-sin.c");
     audio_unit* Sin2 = CreateUnit("sin2", "audio-dyn-ugen-sin.c");
 
     Sin1->Inputs[0].Unit = MulAdd1; // Freq
-    Sin2->Inputs[0].Constant = 770; // Freq
+    Sin2->Inputs[0].Constant = 220; // Freq
 
     AudioState->OutputUnit = CreateUnit("mix1", "audio-dyn-ugen-mix.c");
     AudioState->OutputUnit->Inputs[0].Unit = Sin1;
