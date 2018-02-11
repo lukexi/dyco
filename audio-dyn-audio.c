@@ -15,8 +15,8 @@ void FreeUnit(audio_unit* Unit) {
     Unit->Library = NULL;
 
     for (int I = 0; I < ARRAY_LEN(Unit->Inputs); I++) {
-        FreeUnit(Unit->Inputs[I].InputUnit);
-        Unit->Inputs[I].InputUnit = NULL;
+        FreeUnit(Unit->Inputs[I].Unit);
+        Unit->Inputs[I].Unit = NULL;
     }
     // FIXME this isn't safe for a diamond connection shape
     /*
@@ -38,19 +38,28 @@ void Initialize() {
     if (Initialized) return;
     Initialized = true;
 
+    audio_unit* Sin3 = CreateUnit("sin3", "audio-dyn-ugen-sin.c");
+    Sin3->Inputs[0].Constant = 7;
+
+    audio_unit* MulAdd1 = CreateUnit("muladd1", "audio-dyn-ugen-muladd.c");
+
+    MulAdd1->Inputs[0].Unit = Sin3;
+    MulAdd1->Inputs[1].Constant = 220;
+    MulAdd1->Inputs[2].Constant = 440;
+
     audio_unit* Sin1 = CreateUnit("sin1", "audio-dyn-ugen-sin.c");
     audio_unit* Sin2 = CreateUnit("sin2", "audio-dyn-ugen-sin.c");
 
-    Sin1->Inputs[0].Constant = 440;
+    Sin1->Inputs[0].Unit = MulAdd1;
     Sin2->Inputs[0].Constant = 550;
 
     OutputUnit = CreateUnit("mix1", "audio-dyn-ugen-mix.c");
-    OutputUnit->Inputs[0].InputUnit = Sin1;
-    OutputUnit->Inputs[1].InputUnit = Sin2;
+    OutputUnit->Inputs[0].Unit = Sin1;
+    OutputUnit->Inputs[1].Unit = Sin2;
 }
 
 float GetInput(audio_input Input, uint32_t Frame) {
-    if (Input.InputUnit) return Input.InputUnit->Output[Frame];
+    if (Input.Unit) return Input.Unit->Output[Frame];
     return Input.Constant;
 }
 
@@ -84,7 +93,7 @@ void TickUnit(audio_unit* Unit, uint32_t NumFrames, uint32_t SampleRate, long Ti
     UpdateUnit(Unit);
 
     for (int I = 0; I < ARRAY_LEN(Unit->Inputs); I++) {
-        TickUnit(Unit->Inputs[I].InputUnit, NumFrames, SampleRate, TickID);
+        TickUnit(Unit->Inputs[I].Unit, NumFrames, SampleRate, TickID);
     }
 
 

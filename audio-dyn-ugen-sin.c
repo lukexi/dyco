@@ -6,7 +6,6 @@ typedef struct {
     double Phase;
 } oscillator;
 
-
 float Oscillator(oscillator* State, int SampleRate, float* Wavetable, float Freq) {
     const float T = 1/(float)SampleRate;
 
@@ -50,7 +49,7 @@ void TickUGen(
     for (int I = 0; I < NumFrames; I++) {
         Unit->Output[I] = Oscillator(State,
             SampleRate,
-            SquWave,
+            SinWave,
             GetInput(Unit->Inputs[0], I));
     }
 }

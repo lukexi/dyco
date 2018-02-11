@@ -18,7 +18,7 @@ typedef void (*UGenTickFunc) (
     uint32_t SampleRate);
 
 typedef struct {
-    audio_unit* InputUnit;
+    audio_unit* Unit;
     float Constant;
 } audio_input;
 
