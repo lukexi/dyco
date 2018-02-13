@@ -38,7 +38,9 @@ void DrawUnit(r_state* State, audio_unit* Unit, float X, float Y) {
     if (Unit->Scope.Tex == 0) {
         InitScope(&Unit->Scope);
     }
-    glUniform2f(glGetUniformLocation(State->Shader, "Scale"), 0.24,0.24);
+    float Scale = 0.15;
+    float YOffset = 0.35;
+    glUniform2f(glGetUniformLocation(State->Shader, "Scale"), Scale,Scale);
     glUniform2f(glGetUniformLocation(State->Shader, "Translate"), X,Y);
     glUniform1i(glGetUniformLocation(State->Shader, "BufferSize"), BUFFER_SIZE);
 
@@ -51,7 +53,7 @@ void DrawUnit(r_state* State, audio_unit* Unit, float X, float Y) {
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
     for (int I = 0; I < ARRAY_LEN(Unit->Inputs); I++) {
-        DrawUnit(State, Unit->Inputs[I].Unit, I*0.5, Y + 0.5);
+        DrawUnit(State, Unit->Inputs[I].Unit, I*(YOffset), Y + YOffset);
     }
 }
 
@@ -64,7 +66,7 @@ void TickRender(SDL_Window* Window, audio_state* AudioState) {
     }
     LoadShader(&State);
 
-    glClearColor(0, 0.0, 0.1, 1);
+    glClearColor(0.8, 0.6, 0.9, 1);
     glClear(GL_COLOR_BUFFER_BIT);
 
     DrawUnit(&State, AudioState->OutputUnit, 0, -0.75);

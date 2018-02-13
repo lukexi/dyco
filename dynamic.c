@@ -25,6 +25,7 @@ library* CreateLibrary(
 void FreeLibrary(library* Library) {
     if (!Library) return;
     if (Library->LibHandle) {
+        printf("Freeing and closing %s\n", Library->Path);
         dlclose(Library->LibHandle);
     }
     free(Library->Name);
@@ -53,8 +54,15 @@ bool ReloadLibrary(library* Library) {
 
     // Close the old library
     if (Library->LibHandle) {
+        printf("Closing %s\n", Library->Path);
         int Result = dlclose(Library->LibHandle);
         if (Result) printf("dlclose error: %i\n", Result);
+
+        void* LibraryHandle = dlopen(Library->Path, RTLD_NOLOAD);
+        if (LibraryHandle) {
+            printf("Library %s was still open after close!\n", Library->Path);
+            dlclose(LibraryHandle);
+        }
         Library->LibHandle = NULL;
     }
 
@@ -62,7 +70,14 @@ bool ReloadLibrary(library* Library) {
     void* NewLibraryHandle = NULL;
 
     if (Library->LibraryCompiledSuccessfully) {
-        NewLibraryHandle = dlopen(Library->Path, RTLD_LAZY | RTLD_GLOBAL);
+        printf("Opening %s....\n", Library->Path);
+        // Use RTLD_NOW so that unresolvable symbols result in an error.
+        NewLibraryHandle = dlopen(Library->Path, RTLD_NOW);
+        if (!NewLibraryHandle) {
+            char* LibraryError = dlerror();
+            printf("Error loading library %s: %s\n", Library->Path, LibraryError);
+            // FIXME: copy this into the compilation log.
+        }
     }
 
     Library->LibHandle = NewLibraryHandle;

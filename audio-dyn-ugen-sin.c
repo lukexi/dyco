@@ -26,13 +26,6 @@ float Oscillator(oscillator* State, int SampleRate, float* Wavetable, float Freq
     return Amplitude;
 }
 
-void Cleanup(audio_unit* Unit) {
-    if (!Unit) return;
-    // printf("Cleaning up\n");
-    free(Unit->State);
-    Unit->State = NULL;
-}
-
 void TickUGen(
     audio_unit* Unit,
     uint32_t NumFrames,
@@ -40,12 +33,11 @@ void TickUGen(
     if (!Unit) return;
 
     if (!Unit->State) {
-        // printf("Initializing\n");
         Unit->State = calloc(1, sizeof(oscillator));
         InitWavetables();
     }
     oscillator* State = (oscillator*)Unit->State;
-
+    // foo();
     for (int I = 0; I < NumFrames; I++) {
         Unit->Output[I] = Oscillator(State,
             SampleRate,

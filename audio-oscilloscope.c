@@ -11,6 +11,11 @@ int FindOscilloscopeTrigger(float* Samples, int Length) {
     return 0;
 }
 
+void FreeScope(scope* Scope) {
+    glDeleteBuffers(1, &Scope->TexBuf);
+    glDeleteTextures(1, &Scope->Tex);
+}
+
 void InitScope(scope* Scope) {
 
     glGenBuffers(1, &Scope->TexBuf);

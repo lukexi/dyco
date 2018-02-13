@@ -54,6 +54,7 @@ int main(int argc, char const *argv[]) {
             if (Cleanup) Cleanup();
             ReloadLibrary(Render);
             TickRender = GetLibrarySymbol(Render, "TickRender");
+            printf("TickRender() %p\n", TickRender);
         }
 
         if (TickRender) TickRender(Window, AudioState);

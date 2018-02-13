@@ -17,5 +17,6 @@ typedef struct {
 
 void InitScope(scope* Scope);
 void TickOscilloscope(ringbuffer* AudioTap, scope* Scope, GLenum TexUnit);
+void FreeScope(scope* Scope);
 
 #endif // AUDIO_OSCILLOSCOPE_H
