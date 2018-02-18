@@ -4,7 +4,7 @@
 #include "gl.h"
 #include "audio-interface.h"
 #include "dynamic.h"
-#include "audio-jack.h"
+#include "jack.h"
 
 int AudioCallback(jack_nframes_t NumFrames, void *UserData) {
 
@@ -54,12 +54,10 @@ int main(int argc, char const *argv[]) {
             if (Cleanup) Cleanup();
             ReloadLibrary(Render);
             TickRender = GetLibrarySymbol(Render, "TickRender");
-            printf("TickRender() %p\n", TickRender);
         }
 
         if (TickRender) TickRender(Window, AudioState);
     }
-
 
     return 0;
 }

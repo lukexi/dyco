@@ -1,7 +1,7 @@
 #ifndef AUDIO_INTERFACE_H
 #define AUDIO_INTERFACE_H
 
-#include "audio-jack.h"
+#include "jack.h"
 #include "audio-oscilloscope.h"
 #include "ringbuffer.h"
 #include "dynamic.h"
@@ -11,22 +11,22 @@ typedef struct {
     size_t Length;
 } audio_block;
 
-typedef struct audio_unit audio_unit;
+typedef struct dsp_unit dsp_unit;
 
 typedef void (*UGenTickFunc) (
-    audio_unit* Unit,
+    dsp_unit* Unit,
     uint32_t NumFrames,
     uint32_t SampleRate);
 
 typedef struct {
-    audio_unit* Unit;
+    dsp_unit* Unit;
     float Constant;
-} audio_input;
+} dsp_input;
 
-struct audio_unit {
+struct dsp_unit {
     UGenTickFunc TickFunction;
     library* Library;
-    audio_input Inputs[8];
+    dsp_input Inputs[8];
     float Output[512];
     long TickID;
     void* State;
@@ -43,9 +43,14 @@ typedef struct {
         uint32_t SampleRate,
         float* OutL, float* OutR
         );
-    audio_unit* OutputUnit;
+    dsp_unit* OutputUnit;
 } audio_state;
 
-float GetInput(audio_input Input, uint32_t Frame);
+float GetInput(dsp_input Input, uint32_t Frame);
+
+typedef struct {
+    dsp_unit* Units[128];
+    size_t Count;
+} dsp_units;
 
 #endif // AUDIO_INTERFACE_H

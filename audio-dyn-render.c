@@ -33,8 +33,13 @@ void LoadShader(r_state* State) {
     }
 }
 
-void DrawUnit(r_state* State, audio_unit* Unit, float X, float Y) {
+void DrawUnit(r_state* State, dsp_unit* Unit, float X, float Y, dsp_units* DrawnList) {
     if (!Unit) return;
+    for (int I = 0; I < DrawnList->Count; I++) {
+        if (DrawnList->Units[I] == Unit) return;
+    }
+    DrawnList->Units[DrawnList->Count++] = Unit;
+
     if (Unit->Scope.Tex == 0) {
         InitScope(&Unit->Scope);
     }
@@ -53,7 +58,7 @@ void DrawUnit(r_state* State, audio_unit* Unit, float X, float Y) {
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
     for (int I = 0; I < ARRAY_LEN(Unit->Inputs); I++) {
-        DrawUnit(State, Unit->Inputs[I].Unit, I*(YOffset), Y + YOffset);
+        DrawUnit(State, Unit->Inputs[I].Unit, I*(YOffset), Y + YOffset, DrawnList);
     }
 }
 
@@ -69,7 +74,9 @@ void TickRender(SDL_Window* Window, audio_state* AudioState) {
     glClearColor(0.8, 0.6, 0.9, 1);
     glClear(GL_COLOR_BUFFER_BIT);
 
-    DrawUnit(&State, AudioState->OutputUnit, 0, -0.75);
+    dsp_units DrawnList;
+    DrawnList.Count = 0;
+    DrawUnit(&State, AudioState->OutputUnit, 0, -0.75, &DrawnList);
 
     SwapWindowQ(Window);
 }

@@ -1,7 +1,7 @@
 #ifndef AUDIO_INTERFACE_H
 #define AUDIO_INTERFACE_H
 
-#include "audio-jack.h"
+#include "jack.h"
 #include "ringbuffer.h"
 #include "dynamic.h"
 

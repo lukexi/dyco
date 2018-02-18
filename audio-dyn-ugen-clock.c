@@ -6,11 +6,9 @@ typedef struct {
 } clock_gen;
 
 void TickUGen(
-    audio_unit* Unit,
+    dsp_unit* Unit,
     uint32_t NumFrames,
     uint32_t SampleRate) {
-
-    if (!Unit) return;
 
     if (!Unit->State) {
         Unit->State = calloc(1, sizeof(clock_gen));

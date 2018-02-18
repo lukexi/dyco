@@ -26,8 +26,12 @@ struct library {
 };
 
 // Creates a library from a source file or source code string.
-// Provide an optional callback to call when the library is updated
 library* CreateLibrary(char* Name, char* Source);
+
+// New API: doesn't load library implicitly, which makes it more straightforward in loops
+library* CreateLibrary2(
+    char* Name,
+    char* Source);
 
 // Get a symbol from the library that will be
 // valid until the next time the library is reloaded.

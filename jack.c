@@ -1,4 +1,4 @@
-#include "audio-jack.h"
+#include "jack.h"
 #include <stdio.h>
 #include <stdbool.h>
 #include <stdlib.h>
@@ -6,11 +6,34 @@
 bool ConnectJack(
     jack_client_t *Client,
     jack_port_t *OutL,
-    jack_port_t *OutR
-    );
+    jack_port_t *OutR)
+{
+    // Connect our left and right ports to JACK's ports
+    // ("Input" here meaning we are "Inputting to JACK")
+    const char** Ports = jack_get_ports(Client,
+        NULL, NULL, JackPortIsPhysical|JackPortIsInput);
+    if (Ports == NULL) {
+        fprintf(stderr, "no physical playback ports\n");
+        return false;
+    }
 
-jack* StartJack(char* Name, JackProcessCallback ProcessCallback, void *ProcessArg) {
+    if (jack_connect(Client, jack_port_name(OutL), Ports[0]) ||
+        jack_connect(Client, jack_port_name(OutR), Ports[1]))
+    {
+        fprintf(stderr, "cannot connect output ports\n");
+        free(Ports);
+        return false;
+    }
 
+    free(Ports);
+    return true;
+}
+
+jack* StartJack(
+    char* Name,
+    JackProcessCallback ProcessCallback,
+    void *ProcessArg)
+{
     jack* Jack = calloc(1, sizeof(jack));
 
     const char *ServerName = NULL;
@@ -65,29 +88,14 @@ jack* StartJack(char* Name, JackProcessCallback ProcessCallback, void *ProcessAr
     return Jack;
 }
 
-bool ConnectJack(
-    jack_client_t *Client,
-    jack_port_t *OutL,
-    jack_port_t *OutR
-    )
-{
-    // Connect our left and right ports to JACK's ports
-    // ("Input" here meaning we are "Inputting to JACK")
-    const char** Ports = jack_get_ports(Client,
-        NULL, NULL, JackPortIsPhysical|JackPortIsInput);
-    if (Ports == NULL) {
-        fprintf(stderr, "no physical playback ports\n");
-        return false;
+void StopJack(jack** JackPtr) {
+    if (!JackPtr) return;
+    jack* Jack = *JackPtr;
+    if (!Jack) return;
+    if (Jack->Client) {
+        jack_deactivate(Jack->Client);
+        jack_client_close(Jack->Client);
     }
-
-    if (jack_connect(Client, jack_port_name(OutL),  Ports[0]) ||
-        jack_connect(Client, jack_port_name(OutR), Ports[1]))
-    {
-        fprintf(stderr, "cannot connect output ports\n");
-        free(Ports);
-        return false;
-    }
-
-    free(Ports);
-    return true;
+    free(Jack);
+    *JackPtr = NULL;
 }

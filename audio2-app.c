@@ -3,7 +3,7 @@
 #include <stdbool.h>
 #include <memory.h>
 #include "dynamic.h"
-#include "audio-jack.h"
+#include "jack.h"
 #include "audio2-interface.h"
 
 library* UGen;

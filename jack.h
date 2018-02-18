@@ -1,5 +1,5 @@
-#ifndef AUDIO_JACK_H
-#define AUDIO_JACK_H
+#ifndef JACK_H
+#define JACK_H
 
 #include <jack/jack.h>
 
@@ -11,4 +11,7 @@ typedef struct {
 
 jack* StartJack(char* Name, JackProcessCallback ProcessCallback, void *ProcessArg);
 
-#endif // AUDIO_JACK_H
+// Frees and NULLs the pointer.
+void StopJack(jack** JackPtr);
+
+#endif // JACK_H

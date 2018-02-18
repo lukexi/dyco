@@ -4,14 +4,9 @@
 #include <assert.h>
 #include "utils.h"
 
-audio_unit* CreateUnit(char* Name, char* FileName);
+dsp_unit* CreateUnit(char* Name, char* FileName);
 
-typedef struct {
-    audio_unit* Units[128];
-    size_t Count;
-} audio_units;
-
-void FreeUnit(audio_unit* Unit, audio_units* FreeList) {
+void FreeUnit(dsp_unit* Unit, dsp_units* FreeList) {
     if (Unit == NULL) return;
     // Keep track of which pointers have already been freed, so we
     // don't double free units connected in e.g. a diamond shape
@@ -34,7 +29,7 @@ void FreeUnit(audio_unit* Unit, audio_units* FreeList) {
 }
 
 void Cleanup(audio_state* AudioState) {
-    audio_units FreeList;
+    dsp_units FreeList;
     FreeList.Count = 0;
     printf("Cleaning up audio graph...\n");
     FreeUnit(AudioState->OutputUnit, &FreeList);
@@ -47,47 +42,47 @@ void Initialize(audio_state* AudioState) {
     if (Initialized) return;
     Initialized = true;
 
-    audio_unit* Clock = CreateUnit("clock1", "audio-dyn-ugen-clock.c");
+    dsp_unit* Clock = CreateUnit("clock1", "audio-dyn-ugen-clock.c");
     Clock->Inputs[0].Constant = 1;
 
-    audio_unit* Env = CreateUnit("env1", "audio-dyn-ugen-env.c");
+    dsp_unit* Env = CreateUnit("env1", "audio-dyn-ugen-env.c");
     Env->Inputs[0].Unit = Clock;
     Env->Inputs[1].Constant = 0.1;
     Env->Inputs[2].Constant = 1.0;
 
-    audio_unit* LFO = CreateUnit("lfo", "audio-dyn-ugen-sin.c");
+    dsp_unit* LFO = CreateUnit("lfo", "audio-dyn-ugen-sin.c");
     LFO->Inputs[0].Constant = 0.1;
-    audio_unit* LFOMulAdd = CreateUnit("muladdlfo", "audio-dyn-ugen-muladd.c");
+    dsp_unit* LFOMulAdd = CreateUnit("muladdlfo", "audio-dyn-ugen-muladd.c");
     LFOMulAdd->Inputs[0].Unit = LFO;
     LFOMulAdd->Inputs[1].Constant = 500;
     LFOMulAdd->Inputs[2].Constant = 500;
 
-    audio_unit* Sin3 = CreateUnit("sin3", "audio-dyn-ugen-sin.c");
+    dsp_unit* Sin3 = CreateUnit("sin3", "audio-dyn-ugen-sin.c");
     Sin3->Inputs[0].Constant = 440;
 
-    audio_unit* MulAdd1 = CreateUnit("muladd1", "audio-dyn-ugen-muladd.c");
+    dsp_unit* MulAdd1 = CreateUnit("muladd1", "audio-dyn-ugen-muladd.c");
 
     MulAdd1->Inputs[0].Unit = Sin3;    // input
     MulAdd1->Inputs[1].Unit = LFOMulAdd; // mul
     MulAdd1->Inputs[2].Constant = 440; // add
 
-    audio_unit* MulAdd2 = CreateUnit("muladd2", "audio-dyn-ugen-muladd.c");
+    dsp_unit* MulAdd2 = CreateUnit("muladd2", "audio-dyn-ugen-muladd.c");
 
     MulAdd2->Inputs[0].Unit = Sin3;    // input
     MulAdd2->Inputs[1].Unit = LFOMulAdd; // mul
     MulAdd2->Inputs[2].Constant = 880; // add
 
-    audio_unit* Sin1 = CreateUnit("sin1", "audio-dyn-ugen-sin.c");
-    audio_unit* Sin2 = CreateUnit("sin2", "audio-dyn-ugen-sin.c");
+    dsp_unit* Sin1 = CreateUnit("sin1", "audio-dyn-ugen-sin.c");
+    dsp_unit* Sin2 = CreateUnit("sin2", "audio-dyn-ugen-sin.c");
 
     Sin1->Inputs[0].Unit = MulAdd1; // Freq
     Sin2->Inputs[0].Unit = MulAdd2; // Freq
 
-    audio_unit* Mix1 = CreateUnit("mix1", "audio-dyn-ugen-mix.c");
+    dsp_unit* Mix1 = CreateUnit("mix1", "audio-dyn-ugen-mix.c");
     Mix1->Inputs[0].Unit = Sin1;
     Mix1->Inputs[1].Unit = Sin2;
 
-    audio_unit* FinalMulAdd = CreateUnit("muladdlfo", "audio-dyn-ugen-muladd.c");
+    dsp_unit* FinalMulAdd = CreateUnit("muladdlfo", "audio-dyn-ugen-muladd.c");
     FinalMulAdd->Inputs[0].Unit = Mix1;
     FinalMulAdd->Inputs[1].Unit = Env;
     FinalMulAdd->Inputs[2].Constant = 0;
@@ -95,13 +90,13 @@ void Initialize(audio_state* AudioState) {
     AudioState->OutputUnit = FinalMulAdd;
 }
 
-float GetInput(audio_input Input, uint32_t Frame) {
+float GetInput(dsp_input Input, uint32_t Frame) {
     if (Input.Unit) return Input.Unit->Output[Frame];
     return Input.Constant;
 }
 
-audio_unit* CreateUnit(char* Name, char* FileName) {
-    audio_unit* Unit   = calloc(1, sizeof(audio_unit));
+dsp_unit* CreateUnit(char* Name, char* FileName) {
+    dsp_unit* Unit   = calloc(1, sizeof(dsp_unit));
 
     Unit->Library      = CreateLibrary(Name, FileName);
     Unit->TickFunction = GetLibrarySymbol(Unit->Library, "TickUGen");
@@ -112,11 +107,11 @@ audio_unit* CreateUnit(char* Name, char* FileName) {
     return Unit;
 }
 
-void UpdateUnit(audio_unit* Unit) {
+void UpdateUnit(dsp_unit* Unit) {
     RecompileLibrary(Unit->Library);
     if (Unit->Library->LibraryNeedsReload) {
         printf("Recompiling %s\n", Unit->Library->Name);
-        void (*Cleanup)(audio_unit*) = GetLibrarySymbol(Unit->Library, "Cleanup");
+        void (*Cleanup)(dsp_unit*) = GetLibrarySymbol(Unit->Library, "Cleanup");
         if (Cleanup) Cleanup(Unit);
         if (Unit->State) { free(Unit->State); Unit->State = NULL; }
         // Silence the output
@@ -126,7 +121,7 @@ void UpdateUnit(audio_unit* Unit) {
     }
 }
 
-void TickUnit(audio_unit* Unit, uint32_t NumFrames, uint32_t SampleRate, long TickID) {
+void TickUnit(dsp_unit* Unit, uint32_t NumFrames, uint32_t SampleRate, long TickID) {
     if (Unit == NULL) return;
     if (Unit->TickID == TickID) return;
     Unit->TickID = TickID;

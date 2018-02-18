@@ -2,7 +2,7 @@
 #include "utils.h"
 
 void TickUGen(
-    audio_unit* Unit,
+    dsp_unit* Unit,
     uint32_t NumFrames,
     uint32_t SampleRate) {
     for (int F = 0; F < NumFrames; F++) {

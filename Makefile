@@ -15,16 +15,16 @@ GL_OBJECTS=gl.o shader.o quad.o framebuffer.o texture.o
 GL_FLAGS=`pkg-config --libs SDL2 GLEW` -framework OpenGL
 AUDIO_FLAGS=`pkg-config --libs jack`
 
-audio-dyn.app: audio-dyn-app.c $(OBJECTS) $(GL_OBJECTS) audio-jack.o
+audio-dyn.app: audio-dyn-app.c $(OBJECTS) $(GL_OBJECTS) jack.o
 	clang -o $@ $^ $(GL_FLAGS) $(AUDIO_FLAGS)
 
-audio-fm.app: audio-fm-app.c $(OBJECTS) $(GL_OBJECTS) audio-jack.o
+audio-fm.app: audio-fm-app.c $(OBJECTS) $(GL_OBJECTS) jack.o
 	clang -o $@ $^ $(GL_FLAGS) $(AUDIO_FLAGS)
 
-audio.app: audio-app.c $(OBJECTS) $(GL_OBJECTS) audio-jack.o
+audio.app: audio-app.c $(OBJECTS) $(GL_OBJECTS) jack.o
 	clang -o $@ $^ $(GL_FLAGS) $(AUDIO_FLAGS)
 
-audio2.app: audio2-app.c $(OBJECTS) audio-jack.o
+audio2.app: audio2-app.c $(OBJECTS) jack.o
 	clang -o $@ $^ $(AUDIO_FLAGS)
 
 cv.app: cv-app.c $(OBJECTS) $(GL_OBJECTS)
@@ -38,6 +38,9 @@ reaction.app: reaction-app.c $(OBJECTS) $(GL_OBJECTS)
 
 globalload.app: globalload-app.c $(OBJECTS)
 	clang -o $@ $^ -undefined dynamic_lookup
+
+contours.app: contours-app.c $(OBJECTS) $(GL_OBJECTS) nanovg.o
+	clang -o $@ $^ $(GL_FLAGS)
 
 clean:
 	rm -f *.app *.so *.dSYM *.o

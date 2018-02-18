@@ -22,6 +22,23 @@ library* CreateLibrary(
     return Library;
 }
 
+library* CreateLibrary2(
+    char* Name,
+    char* Source)
+{
+    library* Library = calloc(1, sizeof(library));
+    Library->Name           = strdup(Name);
+    Library->Source         = strdup(Source);
+    Library->SourceUpdated  = true;
+
+    snprintf(Library->Path, sizeof(Library->Path),
+        "/tmp/%s.so",
+        Library->Name);
+
+    RecompileLibrary(Library);
+    return Library;
+}
+
 void FreeLibrary(library* Library) {
     if (!Library) return;
     if (Library->LibHandle) {
@@ -35,6 +52,7 @@ void FreeLibrary(library* Library) {
 
 void* GetLibrarySymbol(library* Library, char* SymbolName) {
     if (!Library) return NULL;
+    if (!Library->LibHandle) return NULL;
     return dlsym(Library->LibHandle, SymbolName);
 }
 
@@ -76,7 +94,7 @@ bool ReloadLibrary(library* Library) {
         if (!NewLibraryHandle) {
             char* LibraryError = dlerror();
             printf("Error loading library %s: %s\n", Library->Path, LibraryError);
-            // FIXME: copy this into the compilation log.
+            // FIXME: append this to the compilation log.
         }
     }
 

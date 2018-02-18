@@ -6,7 +6,7 @@
 #include "dynamic.h"
 #include "shader.h"
 #include "quad.h"
-#include "audio-jack.h"
+#include "jack.h"
 
 int AudioCallback(jack_nframes_t NumFrames, void *UserData) {
 
