@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <fcntl.h>
 #include <sys/types.h>
+#include <spawn.h>
 
 int CallProcess(char* const* Args, const char* StdIn,
     char* OutBuffer, size_t OutBufferSize, size_t* OutLength,
@@ -19,36 +20,24 @@ int CallProcess(char* const* Args, const char* StdIn,
     fcntl(StdOutPipe[0], F_SETFL, O_NONBLOCK);
     fcntl(StdErrPipe[0], F_SETFL, O_NONBLOCK);
 
-    pid_t ChildPID = fork();
-    if(ChildPID == -1) {
-        perror("fork");
-        exit(1);
-    }
+    posix_spawn_file_actions_t SpawnActions;
+    posix_spawn_file_actions_init(&SpawnActions);
+    posix_spawn_file_actions_adddup2(&SpawnActions, StdInPipe[0], fileno(stdin));
+    posix_spawn_file_actions_addclose(&SpawnActions, StdInPipe[1]);
 
-    if (ChildPID == 0) {
-        // Child process:
-        // Close the sides of the pipes we won't be interacting with
-        close(StdInPipe[1]);
-        close(StdOutPipe[0]);
-        close(StdErrPipe[0]);
-        int Err = 0;
-        Err = dup2(StdInPipe[0],  fileno(stdin));  if (Err == -1) printf("dup2 err: %i\n", Err);
-        Err = dup2(StdOutPipe[1], fileno(stdout)); if (Err == -1) printf("dup2 err: %i\n", Err);
-        Err = dup2(StdErrPipe[1], fileno(stderr)); if (Err == -1) printf("dup2 err: %i\n", Err);
+    posix_spawn_file_actions_adddup2(&SpawnActions, StdOutPipe[1], fileno(stdout));
+    posix_spawn_file_actions_adddup2(&SpawnActions, StdErrPipe[1], fileno(stderr));
+    posix_spawn_file_actions_addclose(&SpawnActions, StdOutPipe[0]);
+    posix_spawn_file_actions_addclose(&SpawnActions, StdErrPipe[0]);
 
-        // v means pointer-to-args, p means use PATH environment variable
-        Err = execvp(Args[0], Args);
-        if (Err) printf("Error during execvp: %i\n", Err);
-        exit(Err);
-    }
+    int PID;
+    posix_spawnp(&PID, Args[0], &SpawnActions, NULL, Args, NULL);
+    posix_spawn_file_actions_destroy(&SpawnActions);
 
-    // Parent process:
-    // Close the sides of the pipes we won't be interacting with
     close(StdInPipe[0]);
     close(StdOutPipe[1]);
     close(StdErrPipe[1]);
 
-    // Write to StdIn
     if (StdIn != NULL) {
         write(StdInPipe[1], StdIn, strlen(StdIn));
     }
@@ -56,7 +45,7 @@ int CallProcess(char* const* Args, const char* StdIn,
 
     // Wait for the child process to complete
     int ExitStatus;
-    while (waitpid(ChildPID, &ExitStatus, WNOHANG) == 0) {
+    while (waitpid(PID, &ExitStatus, WNOHANG) == 0) {
         // Wait for the process...
     }
     if (ExitStatus) {

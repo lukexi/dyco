@@ -23,7 +23,7 @@ typedef struct {
 } vec2;
 
 typedef struct {
-    vec2 Points[1024];
+    vec2 Points[2048];
     int Index;
 } contour;
 
@@ -75,7 +75,8 @@ void DoPass(GLuint InputTex, GLuint Program, GLuint OutputFB) {
 }
 
 void Setup(NVGcontext* NVG) {
-    ImageData = stbi_load("IMG_3169.jpg",
+    char* ImagePath = "IMG_1307.jpg";
+    ImageData = stbi_load(ImagePath,
         &ImageWidth, &ImageHeight, &ImageChannels, 4);
     OriginalImage = nvgCreateImageRGBA(NVG, ImageWidth, ImageHeight, 0, ImageData);
 
@@ -133,7 +134,7 @@ void FollowContour(vec2 StartXY, unsigned char* Image, contour* Contour) {
         {.X= -1, .Y=  0}, // W
         {.X= -1, .Y=  1}, // NW
     };
-    const int Radius = 2;
+    const int Radius = 4;
 
     vec2 CurPosition = StartXY;
     vec2 CurDirection = {0,0};
@@ -152,11 +153,10 @@ void FollowContour(vec2 StartXY, unsigned char* Image, contour* Contour) {
             float Sum = 0;
             for (int R = 1; R <= Radius; R++) {
                 // Sum the values along this direction vector
-                float Val = AvgV3(
-                    Pixel(
-                        AddV2(CurPosition,
-                            MulV2(Direction, R)),
-                    Image));
+                vec2 Coord = AddV2(CurPosition,
+                                MulV2(Direction, R));
+                if (R == 1) ClearPixel(Coord, Image);
+                float Val = AvgV3(Pixel(Coord, Image));
                 // Break if we've reached a trough.
                 // if (Val < 0.3) { break; }
                 Sum += Val;
@@ -190,7 +190,7 @@ contour Contours[512];
 int NumContours = 0;
 
 void FindContoursInImage(unsigned char* Image) {
-    const int MinContourLength = 20;
+    const int MinContourLength = 15;
     for (int X = 0; X < 1024; X++) {
         for (int Y = 0; Y < 768; Y++) {
             if (NumContours >= ARRAY_LEN(Contours)) break;
@@ -218,7 +218,7 @@ void DrawFoundContours(NVGcontext* NVG) {
     int DrawIndex = Saw * NumContours;
 
     for (int C = 0; C < NumContours; C++) {
-        if (C != DrawIndex) continue;
+        // if (C != DrawIndex) continue;
         contour* Contour = &Contours[C];
 
         float Hue = (float)C / (float)NumContours;
@@ -239,6 +239,20 @@ void DrawNVGImage(NVGcontext* NVG, int Image, float Alpha) {
     nvgRect(NVG, 0,0,ImageWidth,ImageHeight);
     nvgFillPaint(NVG, ImagePaint);
     nvgFill(NVG);
+}
+
+void TestPixelExtraction() {
+    // double Frac;
+    // double Saw = modf((double)SDL_GetTicks()/1000.0/2, &Frac);
+    // for (int I = 0; I<10; I++) {
+    //     int X = Saw*1024;
+    //     int Y = 100*I;
+    //     NVGcolor Color = Pixel(X,Y, SobelData);
+    //     nvgBeginPath(NVG);
+    //     nvgRect(NVG, X,Y,100,100);
+    //     nvgFillColor(NVG, Color);
+    //     nvgFill(NVG);
+    // }
 }
 
 void Tick(SDL_Window* Window, NVGcontext* NVG) {
@@ -272,26 +286,12 @@ void Tick(SDL_Window* Window, NVGcontext* NVG) {
 
     nvgBeginFrame(NVG, 1024,768,2);
 
-
     DrawNVGImage(NVG, OriginalImage, 0.5);
     // DrawNVGImage(NVG, SobelImage, 0.5);
     // DrawNVGImage(NVG, PostContourImage, 1);
 
     // Draw the found contours
     DrawFoundContours(NVG);
-
-    // Test pixel extraction
-    // double Frac;
-    // double Saw = modf((double)SDL_GetTicks()/1000.0/2, &Frac);
-    // for (int I = 0; I<10; I++) {
-    //     int X = Saw*1024;
-    //     int Y = 100*I;
-    //     NVGcolor Color = Pixel(X,Y, SobelData);
-    //     nvgBeginPath(NVG);
-    //     nvgRect(NVG, X,Y,100,100);
-    //     nvgFillColor(NVG, Color);
-    //     nvgFill(NVG);
-    // }
 
 
     nvgEndFrame(NVG);
